@@ -14,12 +14,14 @@ if not API_KEY:
     st.stop()
 
 
+
 today_date = datetime.now().strftime("%Y-%m-%d")
 
 
 headers = {
     "x-apisports-key": API_KEY
 }
+
 
 
 @st.cache_data(ttl=1800)
@@ -40,13 +42,12 @@ def get_today_fixtures(date_str):
 
     except Exception as e:
 
-        st.error(f"Error fetching data: {e}")
+        st.error(f"Fixture Error: {e}")
 
     return []
 
 
 
-# Team နောက်ဆုံး 5 ပွဲယူရန်
 @st.cache_data(ttl=1800)
 def get_team_last_fixtures(team_id):
 
@@ -68,9 +69,37 @@ def get_team_last_fixtures(team_id):
 
     except Exception as e:
 
-        st.error(f"Team fixture error: {e}")
+        st.error(f"Team Fixture Error: {e}")
 
     return []
+
+
+
+@st.cache_data(ttl=1800)
+def get_fixture_statistics(fixture_id):
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures/statistics?fixture={fixture_id}"
+    )
+
+    try:
+
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json().get("response", [])
+
+    except Exception as e:
+
+        st.error(f"Statistics Error: {e}")
+
+    return []
+
 
 
 
@@ -82,7 +111,7 @@ if not fixtures:
 
     st.info(
         "ဒီနေ့အတွက် ပွဲစဉ်များ မရှိသေးပါ "
-        "သို့မဟုတ် API Data ခေါ်ယူ၍ မရသေးပါ။"
+        "သို့မဟုတ် API Data မရရှိပါ။"
     )
 
 
@@ -95,11 +124,16 @@ else:
     for fix in fixtures:
 
 
+        fixture_id = fix["fixture"]["id"]
+
+
         home_team = fix["teams"]["home"]["name"]
+
         away_team = fix["teams"]["away"]["name"]
 
 
         home_id = fix["teams"]["home"]["id"]
+
         away_id = fix["teams"]["away"]["id"]
 
 
@@ -111,17 +145,20 @@ else:
 
 
 
-        # Base Rating
-        rating = 50
-
-
-
-        # နောက်ဆုံး 5 ပွဲ Data ခေါ်ရန်
-        # (နောက်အဆင့်မှာ Corner Calculation ထည့်မည်)
-
+        # Team data test
         home_last_matches = get_team_last_fixtures(home_id)
 
         away_last_matches = get_team_last_fixtures(away_id)
+
+
+
+        # Fixture statistics test
+        statistics = get_fixture_statistics(fixture_id)
+
+
+
+        # Base Rating
+        rating = 50
 
 
 
@@ -134,24 +171,25 @@ else:
         if rating >= 90:
 
             stars = "⭐️⭐️⭐️⭐️⭐️"
-            tag = "HIGH CONFIDENCE (5 STAR)"
 
+            tag = "HIGH CONFIDENCE (5 STAR)"
 
         elif rating >= 80:
 
             stars = "⭐️⭐️⭐️⭐️"
-            tag = "MEDIUM CONFIDENCE (4 STAR)"
 
+            tag = "MEDIUM CONFIDENCE (4 STAR)"
 
         elif rating >= 70:
 
             stars = "⭐️⭐️⭐️"
-            tag = "NORMAL TARGET"
 
+            tag = "NORMAL TARGET"
 
         else:
 
             stars = "⭐️⭐️"
+
             tag = "LOW CONFIDENCE"
 
 
@@ -166,6 +204,8 @@ else:
             "home_id": home_id,
 
             "away_id": away_id,
+
+            "fixture_id": fixture_id,
 
             "league": league_name,
 
@@ -238,6 +278,7 @@ else:
         f"📊 ရှာတွေ့သော ပွဲစဉ်ပေါင်း: **{len(filtered_list)}** ပွဲ"
     )
 
+
     st.divider()
 
 
@@ -248,8 +289,7 @@ else:
         with st.container():
 
 
-            col1, col2 = st.columns([2, 1])
-
+            col1, col2 = st.columns([2,1])
 
 
             with col1:
@@ -269,9 +309,8 @@ else:
 
 
                 st.caption(
-                    f"Home ID: {m['home_id']} | Away ID: {m['away_id']}"
+                    f"Fixture ID: {m['fixture_id']}"
                 )
-
 
 
             with col2:
@@ -288,7 +327,6 @@ else:
                 )
 
 
-
             if m["rating"] >= 90:
 
                 st.success(
@@ -300,7 +338,6 @@ else:
                 st.info(
                     "⚠️ Recommendation: Watch Live Odds for Corner Under"
                 )
-
 
 
             st.divider()
