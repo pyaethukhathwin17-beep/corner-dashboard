@@ -2,20 +2,25 @@ from datetime import datetime
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="Corner Analytics", layout="wide")
-st.title("⚽ Corner Under Analytics")
+
+st.set_page_config(
+    page_title="Corner Analytics V1",
+    layout="wide"
+)
+
+
+st.title("⚽ Corner Under Analytics V1")
 
 
 API_KEY = st.secrets.get("API_KEY", "")
 
 
 if not API_KEY:
-    st.warning("⚠️ API Key မထည့်ရသေးပါ။ Streamlit Cloud Secrets တွင် ထည့်ပါ။")
+    st.warning(
+        "⚠️ API Key မတွေ့ပါ။ Streamlit Secrets တွင် ထည့်ပါ။"
+    )
     st.stop()
 
-
-
-today_date = datetime.now().strftime("%Y-%m-%d")
 
 
 headers = {
@@ -24,32 +29,44 @@ headers = {
 
 
 
-@st.cache_data(ttl=1800)
-def get_today_fixtures(date_str):
+today_date = datetime.now().strftime("%Y-%m-%d")
 
-    url = f"https://v3.football.api-sports.io/fixtures?date={date_str}"
+
+
+# ==============================
+# API FUNCTIONS
+# ==============================
+
+
+@st.cache_data(ttl=1800)
+def get_today_fixtures(date):
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures?date={date}"
+    )
 
     try:
 
-        response = requests.get(
+        r = requests.get(
             url,
             headers=headers,
             timeout=10
         )
 
-        if response.status_code == 200:
-            return response.json().get("response", [])
+        if r.status_code == 200:
+            return r.json().get("response", [])
 
     except Exception as e:
 
-        st.error(f"Fixture Error: {e}")
+        st.error(e)
 
     return []
 
 
 
 @st.cache_data(ttl=1800)
-def get_team_last_fixtures(team_id):
+def get_team_last_matches(team_id):
 
     url = (
         "https://v3.football.api-sports.io/"
@@ -58,18 +75,18 @@ def get_team_last_fixtures(team_id):
 
     try:
 
-        response = requests.get(
+        r = requests.get(
             url,
             headers=headers,
             timeout=10
         )
 
-        if response.status_code == 200:
-            return response.json().get("response", [])
+        if r.status_code == 200:
+            return r.json().get("response", [])
 
     except Exception as e:
 
-        st.error(f"Team Fixture Error: {e}")
+        st.error(e)
 
     return []
 
@@ -83,24 +100,130 @@ def get_fixture_statistics(fixture_id):
         f"fixtures/statistics?fixture={fixture_id}"
     )
 
+
     try:
 
-        response = requests.get(
+        r = requests.get(
             url,
             headers=headers,
             timeout=10
         )
 
-        if response.status_code == 200:
-            return response.json().get("response", [])
+
+        if r.status_code == 200:
+            return r.json().get("response", [])
+
 
     except Exception as e:
 
-        st.error(f"Statistics Error: {e}")
+        st.error(e)
+
 
     return []
 
 
+
+# ==============================
+# CORNER CALCULATION
+# ==============================
+
+
+def extract_corners(statistics, team_id):
+
+    for team in statistics:
+
+        if team["team"]["id"] == team_id:
+
+            for item in team.get("statistics", []):
+
+                if item["type"] == "Corner Kicks":
+
+                    value = item["value"]
+
+                    if value is not None:
+
+                        return float(value)
+
+
+    return 0
+
+
+
+def calculate_average(values):
+
+    if len(values) == 0:
+
+        return 0
+
+    return round(
+        sum(values) / len(values),
+        2
+    )
+    # ==============================
+# ANALYSIS ENGINE
+# ==============================
+
+
+def calculate_rating(expected_corner, total_average):
+
+    score = 50
+
+
+    # Expected Corner Score
+
+    if expected_corner <= 8.5:
+
+        score += 25
+
+    elif expected_corner <= 10:
+
+        score += 15
+
+    elif expected_corner <= 12:
+
+        score += 5
+
+    else:
+
+        score -= 20
+
+
+
+    # Average Corner Score
+
+    if total_average <= 9:
+
+        score += 15
+
+    elif total_average <= 11:
+
+        score += 5
+
+    else:
+
+        score -= 10
+
+
+
+    # Limit Score
+
+    if score > 100:
+
+        score = 100
+
+    if score < 0:
+
+        score = 0
+
+
+    return score
+
+
+
+
+# ==============================
+# MAIN PROGRAM
+# ==============================
 
 
 fixtures = get_today_fixtures(today_date)
@@ -110,8 +233,7 @@ fixtures = get_today_fixtures(today_date)
 if not fixtures:
 
     st.info(
-        "ဒီနေ့အတွက် ပွဲစဉ်များ မရှိသေးပါ "
-        "သို့မဟုတ် API Data မရရှိပါ။"
+        "ဒီနေ့အတွက် Fixture မရှိပါ။"
     )
 
 
@@ -121,15 +243,15 @@ else:
     analyzed_matches = []
 
 
+    # Free API Limit ထိန်းရန်
+    fixtures = fixtures[:10]
+
+
+
     for fix in fixtures:
 
 
         fixture_id = fix["fixture"]["id"]
-
-
-        home_team = fix["teams"]["home"]["name"]
-
-        away_team = fix["teams"]["away"]["name"]
 
 
         home_id = fix["teams"]["home"]["id"]
@@ -137,81 +259,150 @@ else:
         away_id = fix["teams"]["away"]["id"]
 
 
-        league_name = fix["league"]["name"]
+        home_name = fix["teams"]["home"]["name"]
 
-        status = fix["fixture"]["status"]["short"]
-
-        match_time = fix["fixture"]["date"][11:16]
+        away_name = fix["teams"]["away"]["name"]
 
 
 
-        # Team data test
-        home_last_matches = get_team_last_fixtures(home_id)
-
-        away_last_matches = get_team_last_fixtures(away_id)
+        league = fix["league"]["name"]
 
 
 
-        # Fixture statistics test
-        statistics = get_fixture_statistics(fixture_id)
+        home_corners = []
+
+        away_corners = []
 
 
 
-        # Base Rating
-        rating = 50
+        # Home Last 5
+
+        home_matches = get_team_last_matches(home_id)
 
 
 
-        if len(home_last_matches) > 0 and len(away_last_matches) > 0:
+        for match in home_matches[:5]:
 
-            rating = 55
+
+            stats = get_fixture_statistics(
+                match["fixture"]["id"]
+            )
+
+
+            corner = extract_corners(
+                stats,
+                home_id
+            )
+
+
+            if corner > 0:
+
+                home_corners.append(corner)
+
+
+
+
+        # Away Last 5
+
+        away_matches = get_team_last_matches(away_id)
+
+
+
+        for match in away_matches[:5]:
+
+
+            stats = get_fixture_statistics(
+                match["fixture"]["id"]
+            )
+
+
+            corner = extract_corners(
+                stats,
+                away_id
+            )
+
+
+            if corner > 0:
+
+                away_corners.append(corner)
+
+
+
+
+        home_avg = calculate_average(
+            home_corners
+        )
+
+
+        away_avg = calculate_average(
+            away_corners
+        )
+
+
+
+        expected_corner = round(
+            (home_avg + away_avg),
+            2
+        )
+
+
+
+        total_average = round(
+            (home_avg + away_avg),
+            2
+        )
+
+
+
+        rating = calculate_rating(
+            expected_corner,
+            total_average
+        )
 
 
 
         if rating >= 90:
 
-            stars = "⭐️⭐️⭐️⭐️⭐️"
+            stars = "⭐⭐⭐⭐⭐"
 
-            tag = "HIGH CONFIDENCE (5 STAR)"
+            tag = "HIGH CONFIDENCE"
+
 
         elif rating >= 80:
 
-            stars = "⭐️⭐️⭐️⭐️"
+            stars = "⭐⭐⭐⭐"
 
-            tag = "MEDIUM CONFIDENCE (4 STAR)"
+            tag = "GOOD TARGET"
+
 
         elif rating >= 70:
 
-            stars = "⭐️⭐️⭐️"
+            stars = "⭐⭐⭐"
 
-            tag = "NORMAL TARGET"
+            tag = "NORMAL"
+
 
         else:
 
-            stars = "⭐️⭐️"
+            stars = "⭐⭐"
 
-            tag = "LOW CONFIDENCE"
-
+            tag = "LOW"
 
 
 
         analyzed_matches.append({
 
-            "home": home_team,
+            "home": home_name,
 
-            "away": away_team,
+            "away": away_name,
 
-            "home_id": home_id,
+            "league": league,
 
-            "away_id": away_id,
+            "home_corner": home_avg,
 
-            "fixture_id": fixture_id,
+            "away_corner": away_avg,
 
-            "league": league_name,
-
-            "status": status,
-
-            "time": match_time,
+            "expected_corner": expected_corner,
 
             "rating": rating,
 
@@ -231,113 +422,61 @@ else:
 
 
 
-    st.subheader("🎯 Filter Matches by Rating")
-
-
-
-    filter_option = st.selectbox(
-
-        "ရွေးချယ်လိုသော Star Rating စစ်ထုတ်ပါ -",
-
-        [
-
-            "🔥 All Recommended Matches",
-
-            "⭐️⭐️⭐️⭐️⭐️ 5 Star Target Only (90%+ Rating)",
-
-            "⭐️⭐️⭐️⭐️ 4 Star Target Only (80%+ Rating)"
-
-        ]
-
+    st.subheader(
+        "🎯 Corner Under Predictions"
     )
 
 
 
-    filtered_list = analyzed_matches
-
-
-
-    if "5 Star Target Only" in filter_option:
-
-        filtered_list = [
-            m for m in analyzed_matches
-            if m["rating"] >= 90
-        ]
-
-
-    elif "4 Star Target Only" in filter_option:
-
-        filtered_list = [
-            m for m in analyzed_matches
-            if m["rating"] >= 80
-        ]
-
-
-
-    st.write(
-        f"📊 ရှာတွေ့သော ပွဲစဉ်ပေါင်း: **{len(filtered_list)}** ပွဲ"
-    )
-
-
-    st.divider()
-
-
-
-    for m in filtered_list:
+    for match in analyzed_matches:
 
 
         with st.container():
 
 
-            col1, col2 = st.columns([2,1])
+            st.markdown(
+                f"## ⚽ {match['home']} vs {match['away']}"
+            )
+
+
+            st.write(
+                f"🏆 League: {match['league']}"
+            )
+
+
+            col1, col2, col3 = st.columns(3)
 
 
             with col1:
 
-                st.markdown(
-                    f"### ⚽ {m['home']} vs {m['away']}"
-                )
-
-
-                st.write(
-
-                    f"🏆 **League:** {m['league']} | "
-                    f"⏰ **Time:** {m['time']} UTC "
-                    f"[{m['status']}]"
-
-                )
-
-
-                st.caption(
-                    f"Fixture ID: {m['fixture_id']}"
+                st.metric(
+                    "Home Avg Corner",
+                    match["home_corner"]
                 )
 
 
             with col2:
 
+                st.metric(
+                    "Away Avg Corner",
+                    match["away_corner"]
+                )
+
+
+            with col3:
 
                 st.metric(
-
-                    label=f"Under Rating: {m['rating']}%",
-
-                    value=m["stars"],
-
-                    delta=m["tag"]
-
+                    "Expected Corner",
+                    match["expected_corner"]
                 )
 
 
-            if m["rating"] >= 90:
 
-                st.success(
-                    "✅ Recommendation: Prematch / Live Corner Under"
-                )
-
-            else:
-
-                st.info(
-                    "⚠️ Recommendation: Watch Live Odds for Corner Under"
-                )
+            st.success(
+                f"{match['stars']} "
+                f"Under Rating: {match['rating']}% "
+                f"- {match['tag']}"
+            )
 
 
             st.divider()
