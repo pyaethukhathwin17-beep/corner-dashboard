@@ -43,76 +43,6 @@ today_date = datetime.now().strftime("%Y-%m-%d")
 
 
 @st.cache_data(ttl=1800)
-def get_today_fixtures(date):
-
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures?date={date}"
-    )
-
-
-    try:
-
-        r = requests.get(
-            url,
-            headers=headers,
-            timeout=10
-        )
-
-
-        if r.status_code == 200:
-
-            return r.json().get("response", [])
-
-
-    except Exception as e:
-
-        st.error(
-            f"Fixture Error: {e}"
-        )
-
-
-    return []
-
-
-
-
-@st.cache_data(ttl=1800)
-def get_team_last_matches(team_id):
-
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures?team={team_id}&last=5"
-    )
-
-
-    try:
-
-        r = requests.get(
-            url,
-            headers=headers,
-            timeout=10
-        )
-
-
-        if r.status_code == 200:
-
-            return r.json().get("response", [])
-
-
-    except Exception as e:
-
-        st.error(
-            f"Team Error: {e}"
-        )
-
-
-    return []
-
-
-
-
-@st.cache_data(ttl=1800)
 def get_fixture_statistics(fixture_id):
 
     url = (
@@ -120,7 +50,6 @@ def get_fixture_statistics(fixture_id):
         f"fixtures/statistics?fixture={fixture_id}"
     )
 
-
     try:
 
         r = requests.get(
@@ -129,22 +58,28 @@ def get_fixture_statistics(fixture_id):
             timeout=10
         )
 
-
         data = r.json()
 
 
         if r.status_code == 200:
 
-         if r.status_code == 200:
+            st.write(
+                "STATISTICS RESPONSE:",
+                data
+            )
 
-    st.write("STATISTICS RESPONSE:", data)
-
-    return data.get("response", [])   
+            return data.get(
+                "response",
+                []
+            )
 
 
         else:
 
-            return []
+            st.write(
+                "API ERROR:",
+                data
+            )
 
 
     except Exception as e:
@@ -155,6 +90,10 @@ def get_fixture_statistics(fixture_id):
 
 
     return []
+
+
+
+
 
 
 
