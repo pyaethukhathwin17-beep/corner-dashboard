@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 import requests
 import streamlit as st
 
@@ -19,7 +19,7 @@ headers = {
     "x-apisports-key": API_KEY
 }
 
-today_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+today_date = "2026-07-31"
 
 # ==================================
 # API FUNCTIONS
@@ -49,11 +49,15 @@ def api_get(url):
 def get_today_fixtures():
     url = (
         "https://v3.football.api-sports.io/"
-        "fixtures?league=71&season=2025"
+        "fixtures?live=all"
     )
+
     data = api_get(url)
 
-    st.write("API RESPONSE:", data.get("results"))
+    st.write(
+        "LIVE RESULT:",
+        data.get("results")
+    )
 
     return data.get("response", [])
 
