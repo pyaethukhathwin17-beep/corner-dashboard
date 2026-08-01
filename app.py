@@ -136,14 +136,18 @@ def extract_corners(statistics, team_id):
 
             for item in team.get("statistics", []):
 
-                if item["type"] == "Corner Kicks":
+                st.write(
+                    "DEBUG:",
+                    item
+                )
+
+                if "Corner" in item["type"]:
 
                     value = item["value"]
 
                     if value is not None:
 
                         return float(value)
-
 
     return 0
 
