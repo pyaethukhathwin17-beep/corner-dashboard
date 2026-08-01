@@ -52,7 +52,7 @@ def get_today_fixtures():
     return data.get("response", [])
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=86400)
 def get_fixture_statistics(fixture_id):
     url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
     data = api_get(url)
@@ -99,8 +99,8 @@ if not fixtures:
 
 st.success(f"Fixture Found: {len(fixtures)}")
 
-# API Limit ထိန်းရန်
-fixtures = fixtures[:20]
+# API Free Plan အတွက် ပွဲအနည်းငယ်သာ စစ်မည်
+fixtures = fixtures[:5]
 
 for fix in fixtures:
     fixture_id = fix["fixture"]["id"]
