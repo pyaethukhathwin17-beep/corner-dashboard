@@ -101,10 +101,8 @@ def extract_team_corner(stats, team_id):
         return 0
 
     for team in stats:
-        team_info = team.get("team", {})
-        if team_info.get("id") == team_id:
-            statistics = team.get("statistics", [])
-            for item in statistics:
+        if team.get("team", {}).get("id") == team_id:
+            for item in team.get("statistics", []):
                 if item.get("type") == "Corner Kicks":
                     value = item.get("value")
                     if value is not None:
@@ -135,6 +133,11 @@ for fix in fixtures:
     away = fix["teams"]["away"]["name"]
 
     stats = get_fixture_statistics(fixture_id)
+
+    # Debugging ပြရန်
+    st.write("HOME ID:", home_id)
+    st.write("AWAY ID:", away_id)
+    st.write("STATS:", stats)
 
     home_corner = extract_team_corner(stats, home_id)
     away_corner = extract_team_corner(stats, away_id)
