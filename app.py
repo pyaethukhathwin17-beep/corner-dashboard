@@ -59,34 +59,6 @@ def get_fixture_statistics(fixture_id):
     return data.get("response", [])
 
 
-@st.cache_data(ttl=3600)
-def get_team_last_matches(team_id):
-    url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last=5"
-
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            return response.json().get(
-                "response",
-                []
-            )
-
-        elif response.status_code == 429:
-            st.warning(
-                "API Rate Limit ရောက်နေပါသည်"
-            )
-
-    except Exception as e:
-        st.error(e)
-
-    return []
-
-
 # ==================================
 # CORNER EXTRACTION
 # ==================================
@@ -104,59 +76,6 @@ def extract_team_corner(stats, team_id):
                         return float(value)
 
     return 0
-
-
-def get_team_corner_average(team_id):
-    matches = get_team_last_matches(team_id)
-
-    st.write(
-        "TEAM:",
-        team_id,
-        "LAST MATCHES:",
-        len(matches)
-    )
-
-    corners = []
-
-    for match in matches[:5]:
-        fixture_id = match["fixture"]["id"]
-
-        st.write(
-            "CHECK FIXTURE:",
-            fixture_id
-        )
-
-        stats = get_fixture_statistics(
-            fixture_id
-        )
-
-        st.write(
-            "STATS LENGTH:",
-            len(stats)
-        )
-
-        corner = extract_team_corner(
-            stats,
-            team_id
-        )
-
-        st.write(
-            "CORNER FOUND:",
-            corner
-        )
-
-        if corner > 0:
-            corners.append(
-                corner
-            )
-
-    if not corners:
-        return 0
-
-    return round(
-        sum(corners) / len(corners),
-        2
-    )
 
 
 def average(values):
@@ -191,8 +110,17 @@ for fix in fixtures:
     home = fix["teams"]["home"]["name"]
     away = fix["teams"]["away"]["name"]
 
-    home_corner = get_team_corner_average(home_id)
-    away_corner = get_team_corner_average(away_id)
+    stats = get_fixture_statistics(fixture_id)
+
+    home_corner = extract_team_corner(
+        stats,
+        home_id
+    )
+
+    away_corner = extract_team_corner(
+        stats,
+        away_id
+    )
 
     expected_corner = round(home_corner + away_corner, 2)
 
@@ -201,10 +129,10 @@ for fix in fixtures:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Home Corner Average", home_corner)
+        st.metric("Home Corner", home_corner)
 
     with col2:
-        st.metric("Away Corner Average", away_corner)
+        st.metric("Away Corner", away_corner)
 
     with col3:
         st.metric("Expected Corner", expected_corner)
