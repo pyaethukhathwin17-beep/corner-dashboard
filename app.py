@@ -36,40 +36,49 @@ else:
     analyzed_matches = []
 
     for fix in fixtures:
-        fix_id = fix["fixture"]["id"]
-        home_team = fix["teams"]["home"]["name"]
-        away_team = fix["teams"]["away"]["name"]
-        league_name = fix["league"]["name"]
-        status = fix["fixture"]["status"]["short"]
-        match_time = fix["fixture"]["date"][11:16]
+    home_team = fix["teams"]["home"]["name"]
+    away_team = fix["teams"]["away"]["name"]
+    league_name = fix["league"]["name"]
+    status = fix["fixture"]["status"]["short"]
+    match_time = fix["fixture"]["date"][11:16]
 
-        # Fixture ID ကို အခြေခံပြီး Consistent ဖြစ်သော Rating % တွက်ချက်ခြင်း
-        hash_val = int(hashlib.md5(str(fix_id).encode()).hexdigest(), 16)
-        rating = 70 + (hash_val % 29)  # 70% မှ 98% ကြား Rating ထွက်မည်
+    # Initial Rating (Statistics မထည့်ရသေးတဲ့ Base Version)
+    rating = 50
 
-        if rating >= 90:
-            stars = "⭐️⭐️⭐️⭐️⭐️"
-            tag = "HIGH CONFIDENCE (5 STAR)"
-        elif rating >= 80:
-            stars = "⭐️⭐️⭐️⭐️"
-            tag = "MEDIUM CONFIDENCE (4 STAR)"
-        else:
-            stars = "⭐️⭐️⭐️"
-            tag = "NORMAL TARGET"
+    # နောက်ပိုင်းမှာ ဒီနေရာထဲကို
+    # xG
+    # Shots
+    # Corners
+    # Form
+    # Home/Away Stats
+    # တွေ ထည့်သွားမည်
 
-        analyzed_matches.append({
-            "home": home_team,
-            "away": away_team,
-            "league": league_name,
-            "status": status,
-            "time": match_time,
-            "rating": rating,
-            "stars": stars,
-            "tag": tag,
-        })
+    if rating >= 90:
+        stars = "⭐️⭐️⭐️⭐️⭐️"
+        tag = "HIGH CONFIDENCE (5 STAR)"
+    elif rating >= 80:
+        stars = "⭐️⭐️⭐️⭐️"
+        tag = "MEDIUM CONFIDENCE (4 STAR)"
+    elif rating >= 70:
+        stars = "⭐️⭐️⭐️"
+        tag = "NORMAL TARGET"
+    else:
+        stars = "⭐️⭐️"
+        tag = "LOW CONFIDENCE"
 
-    # Rating အမြင့်ဆုံး ပွဲများကို အပေါ်ဆုံးတွင် စီပေးခြင်း
-    analyzed_matches.sort(key=lambda x: x["rating"], reverse=True)
+    analyzed_matches.append({
+        "home": home_team,
+        "away": away_team,
+        "league": league_name,
+        "status": status,
+        "time": match_time,
+        "rating": rating,
+        "stars": stars,
+        "tag": tag,
+    })
+
+# Rating အမြင့်ဆုံးပွဲကို အပေါ်မှာထားခြင်း
+analyzed_matches.sort(key=lambda x: x["rating"], reverse=True)
 
     # UI Filter Selector
     st.subheader("🎯 Filter Matches by Rating")
