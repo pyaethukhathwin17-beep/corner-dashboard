@@ -46,6 +46,34 @@ def get_today_fixtures(date_str):
 
 
 
+# Team နောက်ဆုံး 5 ပွဲယူရန်
+@st.cache_data(ttl=1800)
+def get_team_last_fixtures(team_id):
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures?team={team_id}&last=5"
+    )
+
+    try:
+
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json().get("response", [])
+
+    except Exception as e:
+
+        st.error(f"Team fixture error: {e}")
+
+    return []
+
+
+
 fixtures = get_today_fixtures(today_date)
 
 
@@ -71,7 +99,6 @@ else:
         away_team = fix["teams"]["away"]["name"]
 
 
-        # Team ID (Statistics ချိတ်ရန်)
         home_id = fix["teams"]["home"]["id"]
         away_id = fix["teams"]["away"]["id"]
 
@@ -85,8 +112,22 @@ else:
 
 
         # Base Rating
-        # နောက်ပိုင်း Statistics Engine ထည့်မည်
         rating = 50
+
+
+
+        # နောက်ဆုံး 5 ပွဲ Data ခေါ်ရန်
+        # (နောက်အဆင့်မှာ Corner Calculation ထည့်မည်)
+
+        home_last_matches = get_team_last_fixtures(home_id)
+
+        away_last_matches = get_team_last_fixtures(away_id)
+
+
+
+        if len(home_last_matches) > 0 and len(away_last_matches) > 0:
+
+            rating = 55
 
 
 
@@ -182,7 +223,6 @@ else:
             m for m in analyzed_matches
             if m["rating"] >= 90
         ]
-
 
 
     elif "4 Star Target Only" in filter_option:
