@@ -35,9 +35,14 @@ def api_get(url):
         )
 
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            st.write("API MESSAGE:", result.get("message"))
+            st.write("API ERRORS:", result.get("errors"))
+            return result
         else:
-            st.error(f"API Error: {response.status_code}")
+            st.error(
+                f"API HTTP ERROR: {response.status_code}"
+            )
 
     except Exception as e:
         st.error(f"Connection Error: {e}")
@@ -49,13 +54,13 @@ def api_get(url):
 def get_today_fixtures():
     url = (
         "https://v3.football.api-sports.io/"
-        "fixtures?next=20"
+        "fixtures?date=2026-07-31"
     )
 
     data = api_get(url)
 
     st.write(
-        "NEXT FIXTURES RESULT:",
+        "TOTAL RESULT:",
         data.get("results")
     )
 
