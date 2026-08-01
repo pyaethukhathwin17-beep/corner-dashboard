@@ -60,39 +60,6 @@ def get_fixture_statistics(fixture_id):
 
 
 # ==================================
-# TEST DISPLAY
-# ==================================
-
-fixtures = get_today_fixtures()
-
-if not fixtures:
-    st.info("ဒီနေ့ Fixture မတွေ့ပါ")
-    st.stop()
-
-st.success(f"Fixture Found: {len(fixtures)}")
-
-# Free API Limit အတွက် ပထမ 5 ပွဲသာ စမ်းမယ်
-fixtures = fixtures[:5]
-
-for fix in fixtures:
-    fixture_id = fix["fixture"]["id"]
-    home = fix["teams"]["home"]["name"]
-    away = fix["teams"]["away"]["name"]
-
-    st.divider()
-    st.subheader(f"⚽ {home} vs {away}")
-    st.write(f"Fixture ID: {fixture_id}")
-
-    stats = get_fixture_statistics(fixture_id)
-
-    if stats:
-        st.success("✅ Statistics Data Found")
-        st.write(stats)
-    else:
-        st.warning("⚠️ Statistics Data မရသေးပါ")
-
-
-# ==================================
 # CORNER EXTRACTION
 # ==================================
 
@@ -123,6 +90,17 @@ def average(values):
 
 st.divider()
 st.header("🎯 Corner Under Analysis")
+
+fixtures = get_today_fixtures()
+
+if not fixtures:
+    st.info("ဒီနေ့ Fixture မတွေ့ပါ")
+    st.stop()
+
+st.success(f"Fixture Found: {len(fixtures)}")
+
+# Free API Limit အတွက် ပထမ 5 ပွဲသာ စမ်းမယ်
+fixtures = fixtures[:5]
 
 for fix in fixtures:
     fixture_id = fix["fixture"]["id"]
