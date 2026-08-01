@@ -5,13 +5,17 @@ import streamlit as st
 st.set_page_config(page_title="Corner Analytics", layout="wide")
 st.title("⚽ Corner Under Analytics")
 
+
 API_KEY = st.secrets.get("API_KEY", "")
+
 
 if not API_KEY:
     st.warning("⚠️ API Key မထည့်ရသေးပါ။ Streamlit Cloud Secrets တွင် ထည့်ပါ။")
     st.stop()
 
+
 today_date = datetime.now().strftime("%Y-%m-%d")
+
 
 headers = {
     "x-apisports-key": API_KEY
@@ -20,9 +24,11 @@ headers = {
 
 @st.cache_data(ttl=1800)
 def get_today_fixtures(date_str):
+
     url = f"https://v3.football.api-sports.io/fixtures?date={date_str}"
 
     try:
+
         response = requests.get(
             url,
             headers=headers,
@@ -33,12 +39,15 @@ def get_today_fixtures(date_str):
             return response.json().get("response", [])
 
     except Exception as e:
+
         st.error(f"Error fetching data: {e}")
 
     return []
 
 
+
 fixtures = get_today_fixtures(today_date)
+
 
 
 if not fixtures:
@@ -48,14 +57,24 @@ if not fixtures:
         "သို့မဟုတ် API Data ခေါ်ယူ၍ မရသေးပါ။"
     )
 
+
 else:
+
 
     analyzed_matches = []
 
+
     for fix in fixtures:
+
 
         home_team = fix["teams"]["home"]["name"]
         away_team = fix["teams"]["away"]["name"]
+
+
+        # Team ID (Statistics ချိတ်ရန်)
+        home_id = fix["teams"]["home"]["id"]
+        away_id = fix["teams"]["away"]["id"]
+
 
         league_name = fix["league"]["name"]
 
@@ -64,9 +83,11 @@ else:
         match_time = fix["fixture"]["date"][11:16]
 
 
+
         # Base Rating
-        # နောက်ပိုင်းမှာ Statistics Engine ထည့်မည်
+        # နောက်ပိုင်း Statistics Engine ထည့်မည်
         rating = 50
+
 
 
         if rating >= 90:
@@ -74,15 +95,18 @@ else:
             stars = "⭐️⭐️⭐️⭐️⭐️"
             tag = "HIGH CONFIDENCE (5 STAR)"
 
+
         elif rating >= 80:
 
             stars = "⭐️⭐️⭐️⭐️"
             tag = "MEDIUM CONFIDENCE (4 STAR)"
 
+
         elif rating >= 70:
 
             stars = "⭐️⭐️⭐️"
             tag = "NORMAL TARGET"
+
 
         else:
 
@@ -91,18 +115,32 @@ else:
 
 
 
+
         analyzed_matches.append({
 
             "home": home_team,
+
             "away": away_team,
+
+            "home_id": home_id,
+
+            "away_id": away_id,
+
             "league": league_name,
+
             "status": status,
+
             "time": match_time,
+
             "rating": rating,
+
             "stars": stars,
+
             "tag": tag
 
         })
+
+
 
 
     analyzed_matches.sort(
@@ -111,7 +149,9 @@ else:
     )
 
 
+
     st.subheader("🎯 Filter Matches by Rating")
+
 
 
     filter_option = st.selectbox(
@@ -131,7 +171,9 @@ else:
     )
 
 
+
     filtered_list = analyzed_matches
+
 
 
     if "5 Star Target Only" in filter_option:
@@ -140,6 +182,7 @@ else:
             m for m in analyzed_matches
             if m["rating"] >= 90
         ]
+
 
 
     elif "4 Star Target Only" in filter_option:
@@ -161,9 +204,12 @@ else:
 
     for m in filtered_list:
 
+
         with st.container():
 
+
             col1, col2 = st.columns([2, 1])
+
 
 
             with col1:
@@ -172,14 +218,24 @@ else:
                     f"### ⚽ {m['home']} vs {m['away']}"
                 )
 
+
                 st.write(
+
                     f"🏆 **League:** {m['league']} | "
                     f"⏰ **Time:** {m['time']} UTC "
                     f"[{m['status']}]"
+
                 )
 
 
+                st.caption(
+                    f"Home ID: {m['home_id']} | Away ID: {m['away_id']}"
+                )
+
+
+
             with col2:
+
 
                 st.metric(
 
@@ -192,19 +248,19 @@ else:
                 )
 
 
+
             if m["rating"] >= 90:
 
                 st.success(
-                    "✅ **Recommendation:** "
-                    "Prematch / Live Corner Under"
+                    "✅ Recommendation: Prematch / Live Corner Under"
                 )
 
             else:
 
                 st.info(
-                    "⚠️ **Recommendation:** "
-                    "Watch Live Odds for Corner Under"
+                    "⚠️ Recommendation: Watch Live Odds for Corner Under"
                 )
+
 
 
             st.divider()
