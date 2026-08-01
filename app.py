@@ -49,13 +49,13 @@ def api_get(url):
 def get_today_fixtures():
     url = (
         "https://v3.football.api-sports.io/"
-        "fixtures?live=all"
+        "fixtures?next=20"
     )
 
     data = api_get(url)
 
     st.write(
-        "LIVE RESULT:",
+        "NEXT FIXTURES RESULT:",
         data.get("results")
     )
 
