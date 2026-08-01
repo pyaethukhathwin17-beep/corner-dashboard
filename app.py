@@ -135,10 +135,11 @@ def get_fixture_statistics(fixture_id):
 
         if r.status_code == 200:
 
-            return data.get(
-                "response",
-                []
-            )
+         if r.status_code == 200:
+
+    st.write("STATISTICS RESPONSE:", data)
+
+    return data.get("response", [])   
 
 
         else:
