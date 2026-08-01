@@ -87,53 +87,20 @@ def extract_team_corner(stats, team_id):
 
 def get_team_corner_average(team_id):
     matches = get_team_last_matches(team_id)
-
-    st.write(
-        "LAST MATCH COUNT:",
-        len(matches)
-    )
-
     corners = []
 
     for match in matches[:5]:
         fixture_id = match["fixture"]["id"]
-
-        st.write(
-            "LAST FIXTURE ID:",
-            fixture_id
-        )
-
-        stats = get_fixture_statistics(
-            fixture_id
-        )
-
-        st.write(
-            "LAST STATS:",
-            stats
-        )
-
-        corner = extract_team_corner(
-            stats,
-            team_id
-        )
-
-        st.write(
-            "FOUND CORNER:",
-            corner
-        )
+        stats = get_fixture_statistics(fixture_id)
+        corner = extract_team_corner(stats, team_id)
 
         if corner > 0:
-            corners.append(
-                corner
-            )
+            corners.append(corner)
 
     if not corners:
         return 0
 
-    return round(
-        sum(corners) / len(corners),
-        2
-    )
+    return round(sum(corners) / len(corners), 2)
 
 
 def average(values):
@@ -157,8 +124,8 @@ if not fixtures:
 
 st.success(f"Fixture Found: {len(fixtures)}")
 
-# Free API Limit အတွက် ပထမ 5 ပွဲသာ စမ်းမယ်
-fixtures = fixtures[:5]
+# ပထမ 3 ပွဲသာ စစ်ဆေးမည်
+fixtures = fixtures[:3]
 
 for fix in fixtures:
     fixture_id = fix["fixture"]["id"]
@@ -167,13 +134,6 @@ for fix in fixtures:
 
     home = fix["teams"]["home"]["name"]
     away = fix["teams"]["away"]["name"]
-
-    stats = get_fixture_statistics(fixture_id)
-
-    # Debugging ပြရန်
-    st.write("HOME ID:", home_id)
-    st.write("AWAY ID:", away_id)
-    st.write("STATS:", stats)
 
     home_corner = get_team_corner_average(home_id)
     away_corner = get_team_corner_average(away_id)
