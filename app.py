@@ -16,15 +16,19 @@ API_KEY = st.secrets.get("API_KEY", "")
 
 
 if not API_KEY:
+
     st.warning(
         "⚠️ API Key မတွေ့ပါ။ Streamlit Secrets တွင် ထည့်ပါ။"
     )
+
     st.stop()
 
 
 
 headers = {
+
     "x-apisports-key": API_KEY
+
 }
 
 
@@ -46,6 +50,7 @@ def get_today_fixtures(date):
         f"fixtures?date={date}"
     )
 
+
     try:
 
         r = requests.get(
@@ -54,14 +59,21 @@ def get_today_fixtures(date):
             timeout=10
         )
 
+
         if r.status_code == 200:
+
             return r.json().get("response", [])
+
 
     except Exception as e:
 
-        st.error(e)
+        st.error(
+            f"Fixture Error: {e}"
+        )
+
 
     return []
+
 
 
 
@@ -73,6 +85,7 @@ def get_team_last_matches(team_id):
         f"fixtures?team={team_id}&last=5"
     )
 
+
     try:
 
         r = requests.get(
@@ -81,14 +94,21 @@ def get_team_last_matches(team_id):
             timeout=10
         )
 
+
         if r.status_code == 200:
+
             return r.json().get("response", [])
+
 
     except Exception as e:
 
-        st.error(e)
+        st.error(
+            f"Team Error: {e}"
+        )
+
 
     return []
+
 
 
 
@@ -110,82 +130,138 @@ def get_fixture_statistics(fixture_id):
         )
 
 
+        data = r.json()
+
+
         if r.status_code == 200:
-            return r.json().get("response", [])
+
+            return data.get(
+                "response",
+                []
+            )
+
+
+        else:
+
+            return []
 
 
     except Exception as e:
 
-        st.error(e)
+        st.error(
+            f"Statistics Error: {e}"
+        )
 
 
     return []
 
 
 
+
 # ==============================
-# CORNER CALCULATION
+# CORNER FUNCTIONS
 # ==============================
 
 
 def extract_corners(statistics, team_id):
 
+
+    if not statistics:
+
+        return 0
+
+
+
     for team in statistics:
+
 
         if team["team"]["id"] == team_id:
 
-            for item in team.get("statistics", []):
 
-                st.write(
-                    "DEBUG:",
-                    item
+            for item in team.get(
+                "statistics",
+                []
+            ):
+
+
+                item_type = item.get(
+                    "type",
+                    ""
                 )
 
-                if "Corner" in item["type"]:
 
-                    value = item["value"]
+                value = item.get(
+                    "value"
+                )
 
-                    if value is not None:
+
+                if (
+                    "Corner" in item_type
+                    and value is not None
+                ):
+
+                    try:
 
                         return float(value)
+
+                    except:
+
+                        return 0
+
+
 
     return 0
 
 
 
+
 def calculate_average(values):
+
 
     if len(values) == 0:
 
         return 0
+
 
     return round(
         sum(values) / len(values),
         2
     )
     # ==============================
-# ANALYSIS ENGINE
+# RATING ENGINE
 # ==============================
 
 
 def calculate_rating(expected_corner, total_average):
 
+
+    # Corner Data မရှိရင် Confidence မပေး
+    if expected_corner <= 0:
+
+        return 50
+
+
+
     score = 50
 
 
-    # Expected Corner Score
+
+    # Expected Corner
 
     if expected_corner <= 8.5:
 
         score += 25
 
+
     elif expected_corner <= 10:
 
         score += 15
 
+
     elif expected_corner <= 12:
 
         score += 5
+
 
     else:
 
@@ -193,15 +269,17 @@ def calculate_rating(expected_corner, total_average):
 
 
 
-    # Average Corner Score
+    # Average Corner
 
     if total_average <= 9:
 
         score += 15
 
+
     elif total_average <= 11:
 
         score += 5
+
 
     else:
 
@@ -209,15 +287,16 @@ def calculate_rating(expected_corner, total_average):
 
 
 
-    # Limit Score
 
     if score > 100:
 
         score = 100
 
+
     if score < 0:
 
         score = 0
+
 
 
     return score
@@ -230,21 +309,26 @@ def calculate_rating(expected_corner, total_average):
 # ==============================
 
 
-fixtures = get_today_fixtures(today_date)
+fixtures = get_today_fixtures(
+    today_date
+)
 
 
 
 if not fixtures:
+
 
     st.info(
         "ဒီနေ့အတွက် Fixture မရှိပါ။"
     )
 
 
+
 else:
 
 
     analyzed_matches = []
+
 
 
     # Free API Limit ထိန်းရန်
@@ -255,12 +339,15 @@ else:
     for fix in fixtures:
 
 
+
         fixture_id = fix["fixture"]["id"]
+
 
 
         home_id = fix["teams"]["home"]["id"]
 
         away_id = fix["teams"]["away"]["id"]
+
 
 
         home_name = fix["teams"]["home"]["name"]
@@ -279,9 +366,14 @@ else:
 
 
 
-        # Home Last 5
+        # ==============================
+        # HOME LAST 5
+        # ==============================
 
-        home_matches = get_team_last_matches(home_id)
+
+        home_matches = get_team_last_matches(
+            home_id
+        )
 
 
 
@@ -299,16 +391,25 @@ else:
             )
 
 
+
             if corner > 0:
 
-                home_corners.append(corner)
+                home_corners.append(
+                    corner
+                )
 
 
 
 
-        # Away Last 5
 
-        away_matches = get_team_last_matches(away_id)
+        # ==============================
+        # AWAY LAST 5
+        # ==============================
+
+
+        away_matches = get_team_last_matches(
+            away_id
+        )
 
 
 
@@ -320,15 +421,20 @@ else:
             )
 
 
+
             corner = extract_corners(
                 stats,
                 away_id
             )
 
 
+
             if corner > 0:
 
-                away_corners.append(corner)
+                away_corners.append(
+                    corner
+                )
+
 
 
 
@@ -345,16 +451,13 @@ else:
 
 
         expected_corner = round(
-            (home_avg + away_avg),
+            home_avg + away_avg,
             2
         )
 
 
 
-        total_average = round(
-            (home_avg + away_avg),
-            2
-        )
+        total_average = expected_corner
 
 
 
@@ -365,28 +468,36 @@ else:
 
 
 
+
         if rating >= 90:
+
 
             stars = "⭐⭐⭐⭐⭐"
 
             tag = "HIGH CONFIDENCE"
 
 
+
         elif rating >= 80:
+
 
             stars = "⭐⭐⭐⭐"
 
             tag = "GOOD TARGET"
 
 
+
         elif rating >= 70:
+
 
             stars = "⭐⭐⭐"
 
             tag = "NORMAL"
 
 
+
         else:
+
 
             stars = "⭐⭐"
 
@@ -394,7 +505,9 @@ else:
 
 
 
+
         analyzed_matches.append({
+
 
             "home": home_name,
 
@@ -414,15 +527,21 @@ else:
 
             "tag": tag
 
+
         })
 
 
 
 
+
     analyzed_matches.sort(
+
         key=lambda x: x["rating"],
+
         reverse=True
+
     )
+
 
 
 
@@ -435,7 +554,9 @@ else:
     for match in analyzed_matches:
 
 
+
         with st.container():
+
 
 
             st.markdown(
@@ -443,15 +564,19 @@ else:
             )
 
 
+
             st.write(
                 f"🏆 League: {match['league']}"
             )
 
 
+
             col1, col2, col3 = st.columns(3)
 
 
+
             with col1:
+
 
                 st.metric(
                     "Home Avg Corner",
@@ -459,7 +584,9 @@ else:
                 )
 
 
+
             with col2:
+
 
                 st.metric(
                     "Away Avg Corner",
@@ -467,7 +594,9 @@ else:
                 )
 
 
+
             with col3:
+
 
                 st.metric(
                     "Expected Corner",
@@ -476,11 +605,30 @@ else:
 
 
 
-            st.success(
-                f"{match['stars']} "
-                f"Under Rating: {match['rating']}% "
-                f"- {match['tag']}"
-            )
+
+            if match["expected_corner"] > 0:
+
+
+                st.success(
+
+                    f"{match['stars']} "
+                    f"Under Rating: "
+                    f"{match['rating']}% "
+                    f"- {match['tag']}"
+
+                )
+
+
+            else:
+
+
+                st.warning(
+
+                    "⚠️ Corner Data မရသေးပါ "
+                    "- Rating 50%"
+
+                )
+
 
 
             st.divider()
