@@ -109,13 +109,30 @@ def extract_team_corner(stats, team_id):
 def get_team_corner_average(team_id):
     matches = get_team_last_matches(team_id)
 
+    st.write(
+        "TEAM:",
+        team_id,
+        "LAST MATCHES:",
+        len(matches)
+    )
+
     corners = []
 
-    for match in matches:
+    for match in matches[:5]:
         fixture_id = match["fixture"]["id"]
+
+        st.write(
+            "CHECK FIXTURE:",
+            fixture_id
+        )
 
         stats = get_fixture_statistics(
             fixture_id
+        )
+
+        st.write(
+            "STATS LENGTH:",
+            len(stats)
         )
 
         corner = extract_team_corner(
@@ -123,12 +140,17 @@ def get_team_corner_average(team_id):
             team_id
         )
 
+        st.write(
+            "CORNER FOUND:",
+            corner
+        )
+
         if corner > 0:
             corners.append(
                 corner
             )
 
-    if len(corners) == 0:
+    if not corners:
         return 0
 
     return round(
