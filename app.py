@@ -59,11 +59,32 @@ def get_fixture_statistics(fixture_id):
     return data.get("response", [])
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=3600)
 def get_team_last_matches(team_id):
     url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last=5"
-    data = api_get(url)
-    return data.get("response", [])
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json().get(
+                "response",
+                []
+            )
+
+        elif response.status_code == 429:
+            st.warning(
+                "API Rate Limit ရောက်နေပါသည်"
+            )
+
+    except Exception as e:
+        st.error(e)
+
+    return []
 
 
 # ==================================
@@ -87,20 +108,33 @@ def extract_team_corner(stats, team_id):
 
 def get_team_corner_average(team_id):
     matches = get_team_last_matches(team_id)
+
     corners = []
 
-    for match in matches[:5]:
+    for match in matches:
         fixture_id = match["fixture"]["id"]
-        stats = get_fixture_statistics(fixture_id)
-        corner = extract_team_corner(stats, team_id)
+
+        stats = get_fixture_statistics(
+            fixture_id
+        )
+
+        corner = extract_team_corner(
+            stats,
+            team_id
+        )
 
         if corner > 0:
-            corners.append(corner)
+            corners.append(
+                corner
+            )
 
-    if not corners:
+    if len(corners) == 0:
         return 0
 
-    return round(sum(corners) / len(corners), 2)
+    return round(
+        sum(corners) / len(corners),
+        2
+    )
 
 
 def average(values):
@@ -124,8 +158,8 @@ if not fixtures:
 
 st.success(f"Fixture Found: {len(fixtures)}")
 
-# ပထမ 3 ပွဲသာ စစ်ဆေးမည်
-fixtures = fixtures[:3]
+# API Limit ထိန်းရန်
+fixtures = fixtures[:20]
 
 for fix in fixtures:
     fixture_id = fix["fixture"]["id"]
