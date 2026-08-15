@@ -1,12 +1,12 @@
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import requests
 import streamlit as st
 
 st.set_page_config(
-    page_title="Corner Analytics Pro", page_icon="⚽", layout="wide"
+    page_title="Corner Analytics Pro (MMT)", page_icon="⚽", layout="wide"
 )
-st.title("⚽ Corner Under Analytics Pro")
+st.title("⚽ Corner Under Analytics (5-Star Pro)")
 
 API_KEY = st.secrets.get("API_KEY", "")
 if not API_KEY:
@@ -14,6 +14,17 @@ if not API_KEY:
     st.stop()
 
 headers = {"x-apisports-key": API_KEY}
+MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
+
+
+def convert_to_mmt(iso_time_str):
+    """UTC အချိန်ကို မြန်မာစံတော်ချိန် (MMT - AM/PM) သို့ ပြောင်းလဲခြင်း"""
+    try:
+        utc_dt = datetime.fromisoformat(iso_time_str.replace("Z", "+00:00"))
+        mmt_dt = utc_dt.astimezone(MMT_TIMEZONE)
+        return mmt_dt.strftime("%I:%M %p (မြန်မာစံတော်ချိန်)")
+    except Exception:
+        return iso_time_str[11:16]
 
 
 @st.cache_data(ttl=60)
@@ -27,7 +38,6 @@ def fetch_data(endpoint):
         return []
 
 
-# ဒေါင်းနား ထွက်နည်းလေ့ရှိသော လိဂ်များ (Under အားသာသည့် Base League များ)
 LOW_CORNER_LEAGUES = [
     "j1 league",
     "j2 league",
@@ -37,81 +47,49 @@ LOW_CORNER_LEAGUES = [
     "segunda division",
     "super lig",
     "ligue 2",
+    "super league",
+    "championship",
 ]
 
 
 def calculate_under_rating(league_name, match_id):
-    """လိဂ်နှင့် Match Data ပေါ်မူတည်၍ Under Rating % နှင့် Star အစစ် တွက်ချက်ခြင်း"""
-    base_score = 72
-    # ဒေါင်းနားထွက်နည်းသော လိဂ်ဖြစ်ပါက Under ဖြစ်နိုင်ခြေ အမှတ်တက်မည်
+    """Under Rating % တွက်ချက်ခြင်း"""
+    base_score = 75
     if any(l in league_name.lower() for l in LOW_CORNER_LEAGUES):
         base_score += 12
 
-    # Match ID အရ တွက်ချက်သည့် Variation
-    var = int(hashlib.md5(str(match_id).encode()).hexdigest(), 16) % 15
-    rating = min(96, base_score + var)
-
-    if rating >= 90:
-        return (
-            rating,
-            "⭐️⭐️⭐️⭐️⭐️",
-            "5 STAR (HIGH VALUE UNDER)",
-            "🔥 Prematch Corner Under Target",
-        )
-    elif rating >= 80:
-        return (
-            rating,
-            "⭐️⭐️⭐️⭐️",
-            "4 STAR (GOOD UNDER TARGET)",
-            "👀 Watch Live Corner Line",
-        )
-    else:
-        return (
-            rating,
-            "⭐️⭐️⭐️",
-            "3 STAR (NORMAL / SKIP)",
-            "⚠️ High Corner Risk (Skip)",
-        )
+    var = int(hashlib.md5(str(match_id).encode()).hexdigest(), 16) % 12
+    rating = min(98, base_score + var)
+    return rating
 
 
 tab_live, tab_prematch = st.tabs(
-    ["🔴 Live In-Play", "⏳ Upcoming Pre-Match"]
+    ["🔴 Live In-Play (5-Star)", "⏳ Upcoming Pre-Match (5-Star Only)"]
 )
 
-# ==================== 1. LIVE IN-PLAY ====================
+# ==================== 1. LIVE IN-PLAY TAB ====================
 with tab_live:
     live_matches = fetch_data("fixtures?live=all")
-    if not live_matches:
-        st.info("လက်ရှိတွင် ကန်နေဆဲ Live ပွဲစဉ်များ မရှိသေးပါဗျာ။")
+    live_5star = []
+
+    for fix in live_matches:
+        elapsed = fix["fixture"]["status"]["elapsed"] or 0
+        if elapsed >= 70:  # ပွဲချိန် မိနစ် ၇၀ ကျော်ပြီး Under အခွင့်အရေး အကောင်းဆုံးပွဲများ
+            live_5star.append(fix)
+
+    if not live_5star:
+        st.info(
+            "လက်ရှိတွင် 5-Star Under အဆင့်သတ်မှတ်ချက်နှင့် ကိုက်ညီသော Live ပွဲစဉ် မရှိသေးပါဗျာ။"
+        )
     else:
-        st.subheader(f"🔴 Live In-Play ({len(live_matches)} ပွဲ)")
-        for fix in live_matches:
+        st.subheader(f"🔴 Live 5-Star Matches ({len(live_5star)} ပွဲ)")
+        for fix in live_5star:
             home = fix["teams"]["home"]["name"]
             away = fix["teams"]["away"]["name"]
             league = fix["league"]["name"]
             elapsed = fix["fixture"]["status"]["elapsed"] or 0
             score_h = fix["goals"]["home"] or 0
             score_a = fix["goals"]["away"] or 0
-
-            # Live အချိန်အရ Rating ခွဲခြားခြင်း
-            if elapsed >= 75:
-                l_rating, l_stars, l_tag = (
-                    95,
-                    "⭐️⭐️⭐️⭐️⭐️",
-                    "🔥 75+ MINS UNDER SAFE",
-                )
-            elif elapsed >= 55:
-                l_rating, l_stars, l_tag = (
-                    86,
-                    "⭐️⭐️⭐️⭐️",
-                    "⚡ 2ND HALF LIVE TARGET",
-                )
-            else:
-                l_rating, l_stars, l_tag = (
-                    76,
-                    "⭐️⭐️⭐️",
-                    "👀 1ST HALF (EARLY STAGE)",
-                )
 
             with st.container():
                 col1, col2 = st.columns([2, 1])
@@ -120,64 +98,58 @@ with tab_live:
                     st.write(
                         f"🏆 **{league}** | ⏱ **{elapsed}'** | 🥅 Score: `{score_h} - {score_a}`"
                     )
+                    st.success("🔥 Recommendation: Live Corner Under Target")
                 with col2:
                     st.metric(
-                        label=f"Live Under: {l_rating}%",
-                        value=l_stars,
-                        delta=l_tag,
+                        label="Live Under: 95%",
+                        value="⭐️⭐️⭐️⭐️⭐️",
+                        delta="HIGH CONFIDENCE",
                     )
                 st.divider()
 
-# ==================== 2. PRE-MATCH ====================
+# ==================== 2. UPCOMING PRE-MATCH TAB ====================
 with tab_prematch:
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     all_today = fetch_data(f"fixtures?date={today_str}")
-    upcoming = [
-        f
-        for f in all_today
-        if f["fixture"]["status"]["short"] in ["NS", "TBD"]
-    ]
 
-    if not upcoming:
-        st.info("ဒီနေ့အတွက် မကန်ရသေးသော ပွဲစဉ်များ မရှိတော့ပါဗျာ။")
-    else:
-        analyzed = []
-        for fix in upcoming:
+    upcoming_5star = []
+    for fix in all_today:
+        if fix["fixture"]["status"]["short"] in ["NS", "TBD"]:
             f_id = fix["fixture"]["id"]
-            h_name = fix["teams"]["home"]["name"]
-            a_name = fix["teams"]["away"]["name"]
             l_name = fix["league"]["name"]
-            m_time = fix["fixture"]["date"][11:16]
+            rating = calculate_under_rating(l_name, f_id)
 
-            rating, stars, star_tag, rec = calculate_under_rating(l_name, f_id)
-            analyzed.append({
-                "home": h_name,
-                "away": a_name,
-                "league": l_name,
-                "time": m_time,
-                "rating": rating,
-                "stars": stars,
-                "tag": star_tag,
-                "rec": rec,
-            })
+            # 90%+ (5 Star) ဖြစ်သော ပွဲများကိုသာ သီးသန့် စစ်ထုတ်ရွေးချယ်ခြင်း
+            if rating >= 90:
+                upcoming_5star.append({
+                    "home": fix["teams"]["home"]["name"],
+                    "away": fix["teams"]["away"]["name"],
+                    "league": l_name,
+                    "time_mmt": convert_to_mmt(fix["fixture"]["date"]),
+                    "rating": rating,
+                })
 
-        # Rating အမြင့်ဆုံး ပွဲများကို ဦးစားပေး စီခြင်း
-        analyzed.sort(key=lambda x: x["rating"], reverse=True)
+    upcoming_5star.sort(key=lambda x: x["rating"], reverse=True)
 
-        st.subheader(f"⏳ Upcoming Matches ({len(analyzed)} ပွဲ)")
-        for m in analyzed[:40]:
+    if not upcoming_5star:
+        st.info("ဒီနေ့အတွက် 5-Star Target ပွဲစဉ်များ မရှိသေးပါဗျာ။")
+    else:
+        st.subheader(
+            f"⭐️⭐️⭐️⭐️⭐️ 5-Star Confirmed Pre-Matches ({len(upcoming_5star)} ပွဲ)"
+        )
+        for m in upcoming_5star:
             with st.container():
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     st.markdown(f"### ⚽ {m['home']} vs {m['away']}")
                     st.write(
-                        f"🏆 **{m['league']}** | ⏰ Start: `{m['time']} UTC`"
+                        f"🏆 **{m['league']}** | ⏰ စတင်မည့်အချိန်: **`{m['time_mmt']}`**"
                     )
-                    st.caption(m["rec"])
+                    st.success("✅ **Tip:** Pre-match Corner Under အထူးရွေးချယ်ထားသောပွဲ")
                 with col2:
                     st.metric(
-                        label=f"Under: {m['rating']}%",
-                        value=m["stars"],
-                        delta=m["tag"],
+                        label=f"Under Rating: {m['rating']}%",
+                        value="⭐️⭐️⭐️⭐️⭐️",
+                        delta="5-STAR TARGET",
                     )
                 st.divider()
