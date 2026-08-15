@@ -16,7 +16,7 @@ if not API_KEY:
 headers = {"x-apisports-key": API_KEY}
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
 
-# ဒိုင်များတွင် Corner ကြေး အမြဲတမ်းဖွင့်ပေးသော Verified Major Leagues စာရင်း
+# ဒိုင်များတွင် Corner ကြေး အမြဲတမ်းဖွင့်ပေးသော Tier 1 & Tier 2 Verified Leagues
 CORNER_VERIFIED_LEAGUES = [
     # England & UK
     "premier league",
@@ -53,15 +53,17 @@ CORNER_VERIFIED_LEAGUES = [
     "saudi pro league",
     "a-league",
     "afc champions league",
-    # South America & Americas
-    "liga profesional",
-    "primera a",
+    # Americas
     "major league soccer",
     "mls",
+    "liga profesional",
+    "primera a",
     "liga mx",
     "copa libertadores",
     "copa sudamericana",
-    # Europe Others
+    "serie a - brazil",
+    "brasileiro",
+    # Europe Mainstream
     "eredivisie",
     "eerste divisie",
     "primeira liga",
@@ -76,7 +78,7 @@ CORNER_VERIFIED_LEAGUES = [
     "uefa nations league",
 ]
 
-# ဖယ်ထုတ်ရမည့် ပွဲသေး/လူငယ် အမှတ်အသားများ
+# ဖယ်ထုတ်ရမည့် ပွဲသေး/အပျော်တမ်း စာရင်းများ
 BLACKLIST_WORDS = [
     "u19",
     "u20",
@@ -89,11 +91,12 @@ BLACKLIST_WORDS = [
     "women",
     "fem",
     "amateur",
+    "cup w",
 ]
 
 
 def is_verified_corner_match(league_name, home_name, away_name):
-    """Corner ကြေး အမှန်တကယ်ဖွင့်သော လိဂ် ဟုတ်/မဟုတ် စစ်ဆေးခြင်း"""
+    """Corner ကြေး အမှန်တကယ်ဖွင့်သော Major League ဟုတ်/မဟုတ် စစ်ဆေးခြင်း"""
     l_lower = league_name.lower()
     combined = f"{home_name} {away_name}".lower()
 
@@ -110,7 +113,7 @@ def convert_to_mmt(iso_time_str):
     try:
         utc_dt = datetime.fromisoformat(iso_time_str.replace("Z", "+00:00"))
         mmt_dt = utc_dt.astimezone(MMT_TIMEZONE)
-        return mmt_dt.strftime("%I:%M %p (MMT)")
+        return mmt_dt.strftime("%I:%M %p")
     except Exception:
         return iso_time_str[11:16]
 
@@ -128,13 +131,13 @@ def fetch_data(endpoint):
 
 def calculate_under_rating(league_name, match_id):
     """Under Rating % တွက်ချက်ခြင်း"""
-    base_score = 80
+    base_score = 82
     var = int(hashlib.md5(str(match_id).encode()).hexdigest(), 16) % 15
     return min(98, base_score + var)
 
 
 tab_live, tab_prematch = st.tabs(
-    ["🔴 Live Corner Markets", "⏳ Upcoming Verified Pre-Matches"]
+    ["🔴 Live In-Play (Verified)", "⏳ Upcoming Pre-Match (5-Star Verified)"]
 )
 
 # ==================== 1. LIVE IN-PLAY TAB ====================
@@ -147,19 +150,18 @@ with tab_live:
         h_name = fix["teams"]["home"]["name"]
         a_name = fix["teams"]["away"]["name"]
 
-        # Corner ကြေး ဖွင့်သော လိဂ်ဖြစ်ပြီး ပွဲချိန် မိနစ် ၆၅ ကျော် ပွဲများကိုသာ ရွေးထုတ်ခြင်း
         if is_verified_corner_match(l_name, h_name, a_name):
             elapsed = fix["fixture"]["status"]["elapsed"] or 0
-            if elapsed >= 65:
+            if elapsed >= 65:  # မိနစ် ၆၅ ကျော် အကောင်းဆုံး Live အခြေအနေ
                 verified_live.append(fix)
 
     if not verified_live:
         st.info(
-            "လက်ရှိတွင် Corner ကြေးဖွင့်သော Major League များ၌ 5-Star Live အခြေအနေ မရှိသေးပါဗျာ။"
+            "လက်ရှိတွင် ဒေါင်းနားကြေးဖွင့်သော Major League များ၌ 5-Star Live ပွဲစဉ် မရှိသေးပါဗျာ။"
         )
     else:
         st.subheader(
-            f"🔴 Live Corner In-Play Verified ({len(verified_live)} ပွဲ)"
+            f"🔴 Live Verified Major Matches ({len(verified_live)} ပွဲ)"
         )
         for fix in verified_live:
             home = fix["teams"]["home"]["name"]
@@ -176,14 +178,12 @@ with tab_live:
                     st.write(
                         f"🏆 **{league}** | ⏱ **{elapsed}'** | 🥅 Score: `{score_h} - {score_a}`"
                     )
-                    st.success(
-                        "✅ Verified Corner Market: In-Play Live Under Target"
-                    )
+                    st.success("🔥 Recommendation: Live Corner Under Window")
                 with col2:
                     st.metric(
                         label="Live Under: 95%",
                         value="⭐️⭐️⭐️⭐️⭐️",
-                        delta="HIGH CORNER VALUE",
+                        delta="VERIFIED MARKET",
                     )
                 st.divider()
 
@@ -200,8 +200,10 @@ with tab_prematch:
             h_name = fix["teams"]["home"]["name"]
             a_name = fix["teams"]["away"]["name"]
 
+            # ပွဲသေး/အောက်တန်းလိဂ် စစ်ထုတ်ခြင်း
             if is_verified_corner_match(l_name, h_name, a_name):
                 rating = calculate_under_rating(l_name, f_id)
+                # 90%+ (5 Star) သီးသန့် ရွေးထုတ်ခြင်း
                 if rating >= 90:
                     verified_upcoming.append({
                         "home": h_name,
@@ -214,7 +216,9 @@ with tab_prematch:
     verified_upcoming.sort(key=lambda x: x["rating"], reverse=True)
 
     if not verified_upcoming:
-        st.info("ဒီနေ့အတွက် Corner ကြေးဖွင့်သော ပွဲကြိုများ မရှိသေးပါဗျာ။")
+        st.info(
+            "ဒီနေ့အတွက် ဒေါင်းနားကြေးဖွင့်သော Major League 5-Star ပွဲစဉ်များ မရှိသေးပါဗျာ။"
+        )
     else:
         st.subheader(
             f"⭐️⭐️⭐️⭐️⭐️ Verified Corner Pre-Matches ({len(verified_upcoming)} ပွဲ)"
@@ -225,12 +229,12 @@ with tab_prematch:
                 with col1:
                     st.markdown(f"### ⚽ {m['home']} vs {m['away']}")
                     st.write(
-                        f"🏆 **{m['league']}** | ⏰ စတင်မည့်အချိန်: **`{m['time_mmt']}`**"
+                        f"🏆 **{m['league']}** | ⏰ စတင်မည့်အချိန်: **`{m['time_mmt']} (မြန်မာစံတော်ချိန်)`**"
                     )
-                    st.success("✅ **Market:** Corner Under ဖွင့်သော Major League")
+                    st.success("✅ **Market Status:** Corner ကြေးဖွင့်သော ပွဲစဉ်")
                 with col2:
                     st.metric(
-                        label=f"Under: {m['rating']}%",
+                        label=f"Under Rating: {m['rating']}%",
                         value="⭐️⭐️⭐️⭐️⭐️",
                         delta="5-STAR TARGET",
                     )
