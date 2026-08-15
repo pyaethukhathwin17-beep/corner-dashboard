@@ -75,10 +75,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ==================== 2. BULLETPROOF API FALLBACK ENGINE ====================
+# ==================== 2. API KEY ROTATION & AUTO-CLEAN ====================
 raw_keys = st.secrets.get("API_KEY", "")
+# Strip spaces, quotes, and force lowercase
 API_KEYS = [
-    k.strip().replace('"', "").replace("'", "")
+    k.strip().replace('"', "").replace("'", "").lower()
     for k in raw_keys.replace("\n", ",").split(",")
     if k.strip()
 ]
@@ -88,32 +89,29 @@ if not API_KEYS:
     st.stop()
 
 
-def safe_api_call(endpoint):
-    """Key တစ်ခု ပျက်နေပါက ကျန် Key များကို အလိုအလျောက် အစားထိုး ခေါ်ယူသည့် စနစ်"""
-    last_error = ""
-    for key in API_KEYS:
+def fetch_from_api(endpoint):
+    """Try keys one by one and surface actual errors directly"""
+    errors_log = []
+    for idx, key in enumerate(API_KEYS):
         try:
             url = f"https://v3.football.api-sports.io/{endpoint}"
             headers = {"x-apisports-key": key}
-            res = requests.get(url, headers=headers, timeout=8)
+            res = requests.get(url, headers=headers, timeout=10)
             data = res.json()
 
-            # Check if API returned actual results
-            if "response" in data and len(data["response"]) >= 0:
-                errors = data.get("errors", {})
-                if not errors:
-                    return data["response"]
+            if "response" in data:
+                # Check for API error messages
+                err = data.get("errors")
+                if not err:
+                    return data["response"], f"Key #{idx+1} (OK)"
                 else:
-                    last_error = str(errors)
-            elif "errors" in data and data["errors"]:
-                last_error = str(data["errors"])
+                    errors_log.append(f"Key #{idx+1}: {err}")
+            else:
+                errors_log.append(f"Key #{idx+1}: No response key in payload")
         except Exception as e:
-            last_error = str(e)
-            continue
+            errors_log.append(f"Key #{idx+1}: {str(e)}")
 
-    if last_error:
-        st.sidebar.warning(f"⚠️ API Info: {last_error}")
-    return []
+    return [], " | ".join(errors_log)
 
 
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
@@ -153,7 +151,6 @@ def evaluate_50min_signal(stats_data):
 
     sot_over_confirmed = tot_sot >= 3
     box_over_confirmed = tot_box >= 4
-
     sot_under_confirmed = tot_sot <= 2
     box_under_confirmed = tot_box <= 2
 
@@ -211,7 +208,7 @@ def evaluate_50min_signal(stats_data):
     }
 
 
-# ==================== MAIN UI TABS ====================
+# ==================== MAIN TABS ====================
 tab_live, tab_prematch = st.tabs(
     ["🔴 Live In-Play Intelligence", "⏳ Upcoming Pre-Matches"]
 )
@@ -225,30 +222,34 @@ with tab_live:
             unsafe_allow_html=True,
         )
     with col_t2:
-        if st.button("🔄 Refresh Live Match"):
-            st.cache_data.clear()
+        if st.button("🔄 Force Refresh"):
             st.rerun()
 
-    live_fixtures = safe_api_call("fixtures?live=all")
+    live_fixtures, status_msg = fetch_from_api("fixtures?live=all")
 
     if not live_fixtures:
+        st.error(f"⚠️ Live ပွဲများ ဆွဲမရသေးပါ - Status/Error: `{status_msg}`")
         st.info(
-            "လက်ရှိအချိန်တွင် Live ပွဲစဉ်များ မရှိသေးပါ (သို့မဟုတ် API Call စစ်ဆေးနေပါသည်)။"
+            "💡 Secrets ထဲက API Key များ အမှန်တကယ် မှန်ကန်မှု ရှိမရှိ စစ်ဆေးပေးပါဗျာ။"
         )
     else:
+        st.caption(
+            f"✅ Connection Status: **{status_msg}** &nbsp;|&nbsp; စုစုပေါင်း Live ပွဲစဉ်: **{len(live_fixtures)} ပွဲ**"
+        )
+
         golden_window_matches = [
             f
             for f in live_fixtures
             if 45 <= (f["fixture"]["status"]["elapsed"] or 0) <= 65
         ]
 
-        # Top Hero Radar
+        # Top Radar
         st.markdown(
             """
         <div class="radar-container">
-            <h4 style="margin:0; color:#00f2fe;">⚡ 50' MINUTE ACTION RADAR (ရွှေရောင် အချိန်ပွဲစဉ်များ)</h4>
+            <h4 style="margin:0; color:#00f2fe;">⚡ 50' MINUTE ACTION RADAR</h4>
             <p style="margin:5px 0 0 0; font-size:13px; color:#8b949e;">
-                မိနစ် ၄၅ မှ ၆၅ အတွင်း ရောက်ရှိနေပြီး Over/Under ဆုံးဖြတ်ရန် အကောင်းဆုံး ပွဲစဉ်များ ဖြစ်ပါသည်
+                မိနစ် ၄၅ မှ ၆၅ အတွင်း ရောက်ရှိနေသော ပွဲစဉ်များ
             </p>
         </div>
         """,
@@ -289,9 +290,7 @@ with tab_live:
                     st.info(f"🎯 50' Window Active ({g_min}')")
                 st.divider()
         else:
-            st.caption(
-                "⚡ လောလောဆယ် မိနစ် ၄၅ မှ ၆၅ အတွင်း ပွဲစဉ်များ မရှိသေးပါ။"
-            )
+            st.caption("⚡ လောလောဆယ် မိနစ် ၄၅ မှ ၆၅ အတွင်း ပွဲစဉ်များ မရှိသေးပါ။")
 
         st.markdown(
             f"### 📋 Live In-Play Match Directory ({len(live_fixtures)} ပွဲ)"
@@ -336,13 +335,13 @@ with tab_live:
                 with st.expander(
                     f"📊 View 50' Live Metrics & AI Signal ({home} vs {away})"
                 ):
-                    stats_data = safe_api_call(
+                    stats_data, s_status = fetch_from_api(
                         f"fixtures/statistics?fixture={f_id}"
                     )
 
                     if not stats_data or len(stats_data) < 2:
                         st.warning(
-                            "ဤပွဲအတွက် Live Statistics အသေးစိတ် မရရှိသေးပါ (ဒိုင်များမှ Live Data Update လုပ်နေဆဲဖြစ်နိုင်သည်)။"
+                            "ဤပွဲအတွက် Live Statistics မရရှိသေးပါ (ဒိုင်များမှ Live Data Update လုပ်နေဆဲဖြစ်နိုင်သည်)။"
                         )
                     else:
                         eval_res = evaluate_50min_signal(stats_data)
@@ -442,7 +441,7 @@ with tab_live:
 # ==================== TAB 2: UPCOMING PRE-MATCH ====================
 with tab_prematch:
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    all_today = safe_api_call(f"fixtures?date={today_str}")
+    all_today, _ = fetch_from_api(f"fixtures?date={today_str}")
 
     upcoming_list = []
     for fix in all_today:
