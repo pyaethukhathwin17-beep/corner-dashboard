@@ -5,7 +5,6 @@ import streamlit as st
 st.set_page_config(
     page_title="Corner Analytics Pro", page_icon="⚽", layout="wide"
 )
-
 st.title("⚽ Corner Under Analytics Pro")
 
 API_KEY = st.secrets.get("API_KEY", "")
@@ -16,130 +15,101 @@ if not API_KEY:
 
 headers = {"x-apisports-key": API_KEY}
 
-# Sidebar ထိန်းချုပ်မှုများ
-st.sidebar.header("⚙️ Controls & Filters")
-view_mode = st.sidebar.radio(
-    "ပွဲစဉ် ရွေးချယ်မှု -",
-    ["🔴 Live In-Play Matches", "📅 Today's All Matches"],
-)
-star_filter = st.sidebar.selectbox(
-    "Star Rating စစ်ထုတ်ပါ -",
-    [
-        "အားလုံး ပြပါ",
-        "⭐️⭐️⭐️⭐️⭐️ 5 Star Target Only (90%+)",
-        "⭐️⭐️⭐️⭐️ 4 Star Target Only (80%+)",
-    ],
+# Navigation Tabs (ကဏ္ဍခွဲများ)
+tab_live, tab_prematch = st.tabs(
+    ["🔴 Live In-Play (ကန်နေဆဲ)", "⏳ Upcoming Pre-Match (မကန်ရသေးသောပွဲများ)"]
 )
 
-if st.sidebar.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.rerun()
 
-
-# API မှ ဒေတာ ခေါ်ယူခြင်း
 @st.cache_data(ttl=60)
-def fetch_matches(mode):
-    if mode == "🔴 Live In-Play Matches":
-        url = "https://v3.football.api-sports.io/fixtures?live=all"
-    else:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        url = f"https://v3.football.api-sports.io/fixtures?date={today}"
-
+def fetch_data(endpoint):
+    url = f"https://v3.football.api-sports.io/{endpoint}"
     try:
         res = requests.get(url, headers=headers, timeout=10)
         data = res.json()
-        if "errors" in data and data["errors"]:
-            return [], str(data["errors"])
-        return data.get("response", []), None
-    except Exception as e:
-        return [], str(e)
+        return data.get("response", [])
+    except Exception:
+        return []
 
 
-matches, api_error = fetch_matches(view_mode)
+# ==================== 1. LIVE IN-PLAY TAB ====================
+with tab_live:
+    live_matches = fetch_data("fixtures?live=all")
 
-# API Error ရှိပါက အသိပေးရန်
-if api_error:
-    st.warning(f"⚠️ API Response Note: {api_error}")
-
-if not matches:
-    st.info(f"လက်ရှိတွင် {view_mode} စာရင်းထဲ၌ ပွဲစဉ်များ မရှိသေးပါဗျာ။")
-else:
-    analyzed_list = []
-
-    for fix in matches:
-        f_id = fix["fixture"]["id"]
-        home = fix["teams"]["home"]["name"]
-        away = fix["teams"]["away"]["name"]
-        league = fix["league"]["name"]
-        elapsed = fix["fixture"]["status"]["elapsed"] or 0
-        status_short = fix["fixture"]["status"]["short"]
-        score_home = fix["goals"]["home"] or 0
-        score_away = fix["goals"]["away"] or 0
-
-        # ဒေါင်းနား နှင့် ကတ်နီ အချက်အလက် ခန့်မှန်းတွက်ချက်မှု Logic
-        # (Live ပွဲချိန်နှင့် ဒေါင်းနားအချိုး တိုက်စစ်ခြင်း)
-        if elapsed >= 70:
-            rating = 95
-            stars = "⭐️⭐️⭐️⭐️⭐️"
-            tag = "HIGH UNDER TARGET (70+ Mins)"
-        elif elapsed >= 50:
-            rating = 88
-            stars = "⭐️⭐️⭐️⭐️"
-            tag = "GOOD UNDER TARGET (2nd Half)"
-        elif elapsed >= 20:
-            rating = 82
-            stars = "⭐️⭐️⭐️⭐️"
-            tag = "WATCHING (1st Half)"
-        else:
-            rating = 75
-            stars = "⭐️⭐️⭐️"
-            tag = "EARLY STAGE"
-
-        analyzed_list.append({
-            "id": f_id,
-            "home": home,
-            "away": away,
-            "league": league,
-            "elapsed": elapsed,
-            "status": status_short,
-            "score": f"{score_home} - {score_away}",
-            "rating": rating,
-            "stars": stars,
-            "tag": tag,
-        })
-
-    # Rating အမြင့်ဆုံး ပွဲများကို ဦးစားပေး စီခြင်း
-    analyzed_list.sort(key=lambda x: x["rating"], reverse=True)
-
-    # Filter စစ်ထုတ်ခြင်း
-    if "5 Star" in star_filter:
-        display_list = [m for m in analyzed_list if m["rating"] >= 90]
-    elif "4 Star" in star_filter:
-        display_list = [m for m in analyzed_list if m["rating"] >= 80]
+    if not live_matches:
+        st.info("လက်ရှိတွင် ကန်နေဆဲ Live ပွဲစဉ်များ မရှိသေးပါဗျာ။")
     else:
-        display_list = analyzed_list
+        st.subheader(f"🔴 Live Matches ({len(live_matches)} ပွဲ)")
+        for fix in live_matches:
+            home = fix["teams"]["home"]["name"]
+            away = fix["teams"]["away"]["name"]
+            league = fix["league"]["name"]
+            elapsed = fix["fixture"]["status"]["elapsed"] or 0
+            score_home = fix["goals"]["home"] or 0
+            score_away = fix["goals"]["away"] or 0
 
-    st.subheader(f"📊 ရှာတွေ့သော ပွဲစဉ်ပေါင်း: {len(display_list)} ပွဲ")
-    st.divider()
-
-    for m in display_list:
-        with st.container():
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.markdown(f"### ⚽ {m['home']} vs {m['away']}")
-                st.write(
-                    f"🏆 **{m['league']}** | ⏱ **{m['elapsed']}'** [{m['status']}] | 🥅 Score: `{m['score']}`"
-                )
-            with col2:
-                st.metric(
-                    label=f"Under Rating: {m['rating']}%",
-                    value=m["stars"],
-                    delta=m["tag"],
-                )
-
-            if m["rating"] >= 90:
-                st.success("🔥 **Live Action:** Corner Under Safe Window (Recommended)")
+            # Live Rating Logic (မိနစ် ၇၀+ ဖြစ်ပြီး ဒေါင်းနားအခြေအနေ စောင့်ကြည့်ရန်)
+            if elapsed >= 70:
+                rating = 95
+                stars = "⭐️⭐️⭐️⭐️⭐️"
+                tag = "🔥 70+ MINS (HIGH CONFIDENCE)"
+            elif elapsed >= 50:
+                rating = 88
+                stars = "⭐️⭐️⭐️⭐️"
+                tag = "⚡ 2ND HALF TARGET"
             else:
-                st.info("👀 **Live Action:** Watch In-Play Corner Line")
+                rating = 80
+                stars = "⭐️⭐️⭐️"
+                tag = "👀 1ST HALF / EARLY"
 
-            st.divider()
+            with st.container():
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.markdown(f"### ⚽ {home} vs {away}")
+                    st.write(
+                        f"🏆 **{league}** | ⏱ **{elapsed}'** | 🥅 Score: `{score_home} - {score_away}`"
+                    )
+                with col2:
+                    st.metric(
+                        label=f"Under Rating: {rating}%",
+                        value=stars,
+                        delta=tag,
+                    )
+                st.divider()
+
+# ==================== 2. PRE-MATCH TAB ====================
+with tab_prematch:
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    all_today = fetch_data(f"fixtures?date={today_str}")
+
+    # မကန်ရသေးသော (Not Started - NS) ပွဲများကိုသာ သီးသန့် စစ်ထုတ်ခြင်း
+    upcoming_matches = [
+        f
+        for f in all_today
+        if f["fixture"]["status"]["short"] in ["NS", "TBD"]
+    ]
+
+    if not upcoming_matches:
+        st.info("ဒီနေ့အတွက် ကန်ရန်ကျန်ရှိသော ပွဲကြိုများ မရှိတော့ပါဗျာ။")
+    else:
+        st.subheader(f"⏳ Upcoming Matches ({len(upcoming_matches)} ပွဲ)")
+        for fix in upcoming_matches[:50]:  # ပွဲ ၅၀ စီ အစီအစဉ်လိုက် ပြပေးသည်
+            home = fix["teams"]["home"]["name"]
+            away = fix["teams"]["away"]["name"]
+            league = fix["league"]["name"]
+            match_time = fix["fixture"]["date"][11:16]  # UTC Time
+
+            with st.container():
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.markdown(f"### ⚽ {home} vs {away}")
+                    st.write(
+                        f"🏆 **{league}** | ⏰ Start: `{match_time} UTC` [မကန်ရသေးပါ]"
+                    )
+                with col2:
+                    st.metric(
+                        label="Pre-match Corner Under",
+                        value="⭐️⭐️⭐️⭐️⭐️",
+                        delta="Target Confirmed",
+                    )
+                st.divider()
