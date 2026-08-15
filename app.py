@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone, timedelta
 
 # Page Configuration
 st.set_page_config(page_title="Football Radar & Pre-match", page_icon="⚽", layout="wide")
@@ -41,14 +40,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# API Keys Configuration (Multiple API Keys backup)
+# API Keys Configuration
 API_KEYS = [
     st.secrets.get("API_KEY_1", "YOUR_API_KEY_HERE"),
     st.secrets.get("API_KEY_2", ""),
 ]
 API_KEYS = [k for k in API_KEYS if k and k != "YOUR_API_KEY_HERE"]
 if not API_KEYS:
-    API_KEYS = ["YOUR_API_KEY_HERE"]  # Direct key ထည့်ရန်နေရာ
+    API_KEYS = ["YOUR_API_KEY_HERE"]
 
 # Major League IDs
 MAJOR_LEAGUES = {
@@ -79,9 +78,9 @@ def call_api(endpoint, params):
             continue
     return [], "Connection Error / Limit Exceeded"
 
-# Timezone Handling (Asia/Yangon)
-mm_tz = pytz.timezone('Asia/Yangon')
-now_mm = datetime.now(mm_tz)
+# Built-in Myanmar Timezone (UTC + 6:30)
+MM_TZ = timezone(timedelta(hours=6, minutes=30))
+now_mm = datetime.now(MM_TZ)
 today_str = now_mm.strftime('%Y-%m-%d')
 
 # Header & Refresh Button
@@ -105,7 +104,6 @@ with tab_live:
     if not live_data:
         st.info("လတ်တလော ယှဉ်ပြိုင်ကစားနေသော Live ပွဲစဉ်များ မရှိသေးပါဗျာ။")
     else:
-        # Filter for 45' to 65' minute (50' Minute Action Radar)
         radar_matches = []
         other_matches = []
 
@@ -147,7 +145,6 @@ with tab_live:
         else:
             st.write("လက်ရှိတွင် မိနစ် ၄၅-၆၅ ကြား ပွဲစဉ် မရှိသေးပါ။")
 
-        # Other Live Matches Accordion
         with st.expander(f"အခြား Live ပွဲစဉ်များ ကြည့်ရန် ({len(other_matches)} ပွဲ)"):
             for match in other_matches:
                 fix = match["fixture"]
@@ -161,7 +158,6 @@ with tab_live:
 
 # ----------------- TAB 2: UPCOMING PRE-MATCHES -----------------
 with tab_prematch:
-    # Filter Controls
     col_date, col_filter = st.columns([1, 2])
     with col_date:
         selected_date = st.date_input("ရက်စွဲ ရွေးချယ်ရန်", now_mm.date())
@@ -170,7 +166,6 @@ with tab_prematch:
 
     date_query_str = selected_date.strftime('%Y-%m-%d')
     
-    # API Request with Timezone
     prematch_data, pre_status = call_api("fixtures", {
         "date": date_query_str,
         "timezone": "Asia/Yangon"
@@ -179,10 +174,8 @@ with tab_prematch:
     if not prematch_data:
         st.warning(f"ရက်စွဲ ({date_query_str}) အတွက် ပွဲစဉ်အချက်အလက် မရရှိနိုင်သေးပါဗျာ။")
     else:
-        # Filter Not Started / Upcoming matches
         upcoming = [m for m in prematch_data if m.get("fixture", {}).get("status", {}).get("short") in ["NS", "TBD"]]
         
-        # Filter by League
         if view_mode == "ပွဲကြီးများသာ (Major Leagues)":
             display_list = [m for m in upcoming if m.get("league", {}).get("id") in MAJOR_LEAGUES]
         else:
@@ -201,7 +194,6 @@ with tab_prematch:
                 league = match["league"]
                 teams = match["teams"]
                 
-                # Match start time formatted to HH:MM
                 match_time_str = fix.get("date", "")
                 try:
                     match_dt = datetime.fromisoformat(match_time_str)
