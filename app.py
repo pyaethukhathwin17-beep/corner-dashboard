@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 
 st.set_page_config(
-    page_title="Pre-Match Over/Under Intelligence & Backtest Pro",
+    page_title="Pre-Match Over/Under Intelligence Pro",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -32,10 +32,6 @@ st.markdown(
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 16px;
-        transition: border 0.3s ease;
-    }
-    .match-box:hover {
-        border: 1px solid #00f2fe88;
     }
     .league-badge {
         background-color: #1f293d;
@@ -88,7 +84,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ==================== 2. API ROTATION & KEY CLEANER ====================
+# ==================== 2. API ROTATION & CACHE ====================
 raw_keys = st.secrets.get("API_KEY", "")
 API_KEYS = [
     k.strip().replace('"', "").replace("'", "").lower()
@@ -101,6 +97,7 @@ if not API_KEYS:
     st.stop()
 
 
+@st.cache_data(ttl=300)
 def fetch_from_api(endpoint):
     errors_log = []
     for idx, key in enumerate(API_KEYS):
@@ -135,32 +132,30 @@ def convert_to_mmt(iso_time_str):
         return iso_time_str[11:16]
 
 
-# ==================== 3. STRICT LEAGUE WHITELIST ====================
+# ==================== 3. STRICT FILTER & CLEANER ====================
 ALLOWED_CONFIG = {
-    # 5 Major Countries: Top Tier + 2nd Tier
     "england": ["premier league", "championship"],
     "spain": ["la liga", "segunda division", "laliga 2"],
     "france": ["ligue 1", "ligue 2"],
     "germany": ["bundesliga", "2. bundesliga"],
     "italy": ["serie a", "serie b"],
-    # Top Tier Only Countries
     "argentina": ["liga profesional", "primera division"],
     "australia": ["a-league"],
     "austria": ["bundesliga"],
-    "belgium": ["pro league", "first division a", "jupiler"],
+    "belgium": ["pro league", "first division a"],
     "brazil": ["serie a"],
     "chile": ["primera division"],
-    "china": ["super league", "csl"],
+    "china": ["super league"],
     "colombia": ["primera a"],
     "croatia": ["hnl", "1. hnl"],
     "denmark": ["superliga"],
-    "ecuador": ["liga pro", "serie a"],
+    "ecuador": ["liga pro"],
     "greece": ["super league"],
     "japan": ["j1 league"],
     "mexico": ["liga mx"],
     "netherlands": ["eredivisie"],
     "norway": ["eliteserien"],
-    "peru": ["liga 1", "primera division"],
+    "peru": ["liga 1"],
     "poland": ["ekstraklasa"],
     "portugal": ["primeira liga", "liga portugal"],
     "saudi arabia": ["saudi pro league", "pro league"],
@@ -168,8 +163,7 @@ ALLOWED_CONFIG = {
     "sweden": ["allsvenskan"],
     "switzerland": ["super league"],
     "turkey": ["super lig", "süper lig"],
-    "usa": ["major league soccer", "mls"],
-    # Major Tournaments
+    "usa": ["major league soccer"],
     "world": [
         "uefa champions league",
         "uefa europa league",
@@ -181,6 +175,9 @@ ALLOWED_CONFIG = {
 }
 
 BLACKLIST_WORDS = [
+    "next pro",
+    "mls next",
+    "pro league 2",
     "u14",
     "u15",
     "u16",
@@ -217,13 +214,19 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     combined = (
         f"{league_name} {country_name} {home_name} {away_name}".lower()
     )
-    if any(b in combined for b in BLACKLIST_WORDS) or re.search(
-        r"\bu\s?-?\d{2}\b", combined
+
+    if any(b in combined for b in BLACKLIST_WORDS):
+        return False
+    if re.search(r"\b(ii|iii|b|c|u\s?-?\d{2})\b", home_name.lower()) or re.search(
+        r"\b(ii|iii|b|c|u\s?-?\d{2})\b", away_name.lower()
     ):
         return False
 
     l_low = league_name.lower()
     c_low = country_name.lower() if country_name else ""
+
+    if "major league soccer" in l_low or l_low == "mls":
+        return True
 
     for c_key, valid_leagues in ALLOWED_CONFIG.items():
         if c_key in c_low or c_key in l_low:
@@ -237,16 +240,13 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     return False
 
 
-# ==================== 4. REAL DATA ENGINE (HOME L5 HOME vs AWAY L5 AWAY) ====================
+# ==================== 4. REAL STATS ENGINE ====================
 def analyze_real_l5_metrics(pred_payload):
-    """Calculates metrics strictly based on Home Team Home L5 and Away Team Away L5 stats"""
     try:
         teams_data = pred_payload.get("teams", {})
-        comp = pred_payload.get("comparison", {})
         h_data = teams_data.get("home", {})
         a_data = teams_data.get("away", {})
 
-        # Real Home GF & GA when playing at HOME
         h_gf = float(
             h_data.get("league", {})
             .get("goals", {})
@@ -263,8 +263,6 @@ def analyze_real_l5_metrics(pred_payload):
             .get("home", 0.0)
             or 0.0
         )
-
-        # Real Away GF & GA when playing AWAY
         a_gf = float(
             a_data.get("league", {})
             .get("goals", {})
@@ -282,7 +280,6 @@ def analyze_real_l5_metrics(pred_payload):
             or 0.0
         )
 
-        # If early season/no home-away split available, fallback to total averages
         if h_gf == 0.0:
             h_gf = float(
                 h_data.get("league", {})
@@ -320,21 +317,6 @@ def analyze_real_l5_metrics(pred_payload):
                 or 1.2
             )
 
-        # Extract Real Goals Comparison Percentages
-        comp_goals_h = int(
-            str(comp.get("goals", {}).get("home", "50%")).replace("%", "")
-        )
-        comp_goals_a = int(
-            str(comp.get("goals", {}).get("away", "50%")).replace("%", "")
-        )
-        comp_att_h = int(
-            str(comp.get("att", {}).get("home", "50%")).replace("%", "")
-        )
-        comp_att_a = int(
-            str(comp.get("att", {}).get("away", "50%")).replace("%", "")
-        )
-
-        # Real L5 Over 2.5 % calculation from actual goals scored/conceded in L5
         h_l5_gf_tot = float(
             h_data.get("last_5", {}).get("goals", {}).get("for", {}).get("total", 6)
             or 6
@@ -358,7 +340,6 @@ def analyze_real_l5_metrics(pred_payload):
             or 6
         )
 
-        # Calculate exact Home L5 Over % and Away L5 Over %
         home_l5_avg_match_goals = (h_l5_gf_tot + h_l5_ga_tot) / 5.0
         away_l5_avg_match_goals = (a_l5_gf_tot + a_l5_ga_tot) / 5.0
 
@@ -372,10 +353,8 @@ def analyze_real_l5_metrics(pred_payload):
         home_l5_under = 100 - home_l5_over
         away_l5_under = 100 - away_l5_over
 
-        # Real BTTS % expectation
         est_btts = int(min(92, max(18, (h_gf * a_gf * 36))))
 
-        # Fair Value Odds
         est_over_odds = round(
             max(
                 1.72,
@@ -399,13 +378,10 @@ def analyze_real_l5_metrics(pred_payload):
             2,
         )
 
-        # Decision & Dynamic Scoring
         signal = "NEUTRAL"
         confidence = 50
         boosts = []
 
-        # ================= OVER 2.5 RULES =================
-        # Criteria: Home & Away L5 Over >= 60%, Home GF > 1.5, Home GA > 1, Away GF > 1, Away GA > 1, BTTS >= 60%
         is_over_base = (
             home_l5_over >= 60
             and away_l5_over >= 60
@@ -418,9 +394,8 @@ def analyze_real_l5_metrics(pred_payload):
 
         if is_over_base:
             signal = "OVER_2_5"
-            confidence = 70  # Base 5-Star Score
+            confidence = 70
             boosts.append("✅ All Base Requirements Met (70% Base)")
-
             if home_l5_over >= 80 and away_l5_over >= 80:
                 confidence += 6
                 boosts.append(
@@ -439,8 +414,6 @@ def analyze_real_l5_metrics(pred_payload):
                 confidence += 4
                 boosts.append(f"🎯 Extreme BTTS Expected ({est_btts}%) +4%")
 
-        # ================= UNDER 2.5 RULES =================
-        # Criteria: Home & Away L5 Under >= 60%, Home GF < 1.3, Home GA < 1, Away GF < 1.1, Away GA < 1.2, BTTS < 50%
         is_under_base = (
             home_l5_under >= 60
             and away_l5_under >= 60
@@ -453,9 +426,8 @@ def analyze_real_l5_metrics(pred_payload):
 
         if is_under_base and not is_over_base:
             signal = "UNDER_2_5"
-            confidence = 70  # Base 5-Star Score
+            confidence = 70
             boosts.append("✅ All Base Requirements Met (70% Base)")
-
             if home_l5_under >= 80 and away_l5_under >= 80:
                 confidence += 6
                 boosts.append(
@@ -494,255 +466,242 @@ def analyze_real_l5_metrics(pred_payload):
         return None
 
 
-# ==================== MAIN UI APPLICATION ====================
+# ==================== MAIN UI ====================
 st.markdown(
-    "## ⚽ Pre-Match <span style='color:#00f2fe;'>Intelligence & Backtest Pro</span>",
+    "## ⚽ Pre-Match <span style='color:#00f2fe;'>Over/Under Intelligence Pro</span>",
     unsafe_allow_html=True,
 )
-st.caption(
-    "🔥 Whitelist Pro Leagues  •  Real L5 Home vs L5 Away Engine  •  Odds ≥ 1.70 Filter"
-)
 
-# Date Selection Bar
-c_d1, c_d2, c_d3, c_d4 = st.columns([2, 1, 1, 2])
 current_mmt_date = datetime.now(MMT_TIMEZONE).date()
 
+if "target_date" not in st.session_state:
+    st.session_state.target_date = current_mmt_date
+
+c_d1, c_d2, c_d3, c_d4 = st.columns([2, 1, 1, 2])
 with c_d1:
-    selected_date = st.date_input(
-        "📅 စစ်ဆေးလိုသည့် ရက်စွဲ ရွေးပါ", value=current_mmt_date
+    st.session_state.target_date = st.date_input(
+        "📅 စစ်ဆေးလိုသည့် ရက်စွဲ ရွေးပါ", value=st.session_state.target_date
     )
 with c_d2:
     if st.button("⬅️ Yesterday"):
-        selected_date = current_mmt_date - timedelta(days=1)
+        st.session_state.target_date = current_mmt_date - timedelta(days=1)
+        st.rerun()
 with c_d3:
-    if st.button("➡️ Tomorrow"):
-        selected_date = current_mmt_date + timedelta(days=1)
+    if st.button("➡️ Tomorrow (17)"):
+        st.session_state.target_date = current_mmt_date + timedelta(days=1)
+        st.rerun()
 with c_d4:
-    min_odds_filter = st.slider(
-        "🎯 Minimum Odds Filter", min_value=1.50, max_value=2.10, value=1.70, step=0.05
+    show_upcoming_only = st.checkbox(
+        "⏳ Upcoming Matches Only (မကန်ရသေးသောပွဲများသာ)", value=False
     )
 
-date_str = selected_date.strftime("%Y-%m-%d")
+date_str = st.session_state.target_date.strftime("%Y-%m-%d")
 
-st.divider()
+st.markdown(
+    f"### 📋 Matches for Date: **`<span style='color:#00f2fe;'>{date_str}</span>`** (MMT)",
+    unsafe_allow_html=True,
+)
 
-col_b1, col_b2 = st.columns([3, 1])
-with col_b1:
-    st.markdown(f"### 📋 Matches for Date: **`{date_str}`** (MMT)")
-with col_b2:
-    scan_now = st.button("🔍 Scan & Evaluate Whitelist Matches")
+raw_matches, conn_status = fetch_from_api(f"fixtures?date={date_str}")
 
-if not scan_now:
-    st.info(
-        f"💡 **`{date_str}`** ရက်စွဲရှိ Whitelist ပွဲစဉ်များကို စစ်ဆေးရန် **'🔍 Scan & Evaluate'** ခလုတ်ကို နှိပ်ပေးပါဗျာ။"
-    )
+if not raw_matches:
+    st.error(f"⚠️ API Info: `{conn_status}`")
 else:
-    with st.spinner(f"Analyzing Real L5 Home/Away Data for {date_str}..."):
-        raw_matches, conn_status = fetch_from_api(f"fixtures?date={date_str}")
+    filtered_fixtures = [
+        f
+        for f in raw_matches
+        if is_allowed_league(
+            f["league"]["name"],
+            f["league"].get("country", ""),
+            f["teams"]["home"]["name"],
+            f["teams"]["away"]["name"],
+        )
+    ]
 
-        if not raw_matches:
-            st.error(f"⚠️ API Info: `{conn_status}`")
-            st.info("API Key Limit သို့မဟုတ် Connection Status ကို စစ်ဆေးပေးပါဗျာ။")
+    if show_upcoming_only:
+        filtered_fixtures = [
+            f
+            for f in filtered_fixtures
+            if f["fixture"]["status"]["short"] in ["NS", "TBD"]
+        ]
+
+    if not filtered_fixtures:
+        st.warning(
+            f"`{date_str}` တွင် စစ်ဆေးရန် Whitelist ပွဲစဉ် မရှိပါ (သို့မဟုတ် ပွဲစဉ်များ အားလုံး ပြီးဆုံးသွားပါပြီ)။"
+        )
+    else:
+        analyzed_cards = []
+        won_count = 0
+        lost_count = 0
+        finished_evaluated = 0
+
+        for fix in filtered_fixtures:
+            f_id = fix["fixture"]["id"]
+            h_name = fix["teams"]["home"]["name"]
+            a_name = fix["teams"]["away"]["name"]
+            l_name = fix["league"]["name"]
+            c_name = fix["league"].get("country", "")
+            match_time = convert_to_mmt(fix["fixture"]["date"])
+            status_short = fix["fixture"]["status"]["short"]
+
+            score_h = fix["goals"]["home"]
+            score_a = fix["goals"]["away"]
+            is_finished = status_short in [
+                "FT",
+                "AET",
+                "PEN",
+            ] and (score_h is not None and score_a is not None)
+
+            pred_res, _ = fetch_from_api(f"predictions?fixture={f_id}")
+            analysis = None
+            if pred_res and len(pred_res) > 0:
+                analysis = analyze_real_l5_metrics(pred_res[0])
+
+            if analysis and analysis["signal"] != "NEUTRAL":
+                backtest_badge = None
+                if is_finished:
+                    total_actual_goals = score_h + score_a
+                    finished_evaluated += 1
+                    if (
+                        analysis["signal"] == "OVER_2_5"
+                        and total_actual_goals >= 3
+                    ):
+                        won_count += 1
+                        backtest_badge = (
+                            "WON",
+                            f"✅ WON [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
+                        )
+                    elif (
+                        analysis["signal"] == "UNDER_2_5"
+                        and total_actual_goals <= 2
+                    ):
+                        won_count += 1
+                        backtest_badge = (
+                            "WON",
+                            f"✅ WON [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
+                        )
+                    else:
+                        lost_count += 1
+                        backtest_badge = (
+                            "LOSS",
+                            f"❌ LOST [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
+                        )
+
+                analyzed_cards.append({
+                    "fixture": fix,
+                    "home": h_name,
+                    "away": a_name,
+                    "league": l_name,
+                    "country": c_name,
+                    "time": match_time,
+                    "status": status_short,
+                    "analysis": analysis,
+                    "is_finished": is_finished,
+                    "backtest": backtest_badge,
+                })
+
+        # Summary
+        st.markdown(
+            f"""
+        <div class="hero-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="margin:0; color:#00f2fe;">📊 PERFORMANCE SUMMARY ({date_str})</h4>
+                <span style="font-size:12px; color:#8b949e;">API: {conn_status}</span>
+            </div>
+            <hr style="border-color:#222d3d; margin:10px 0;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; text-align:center;">
+                <div><span style="color:#8b949e; font-size:12px;">WHITELIST MATCHES</span><br><b style="font-size:18px;">{len(filtered_fixtures)}</b></div>
+                <div><span style="color:#8b949e; font-size:12px;">5-STAR PICKS</span><br><b style="font-size:18px; color:#00f2fe;">{len(analyzed_cards)}</b></div>
+                <div><span style="color:#8b949e; font-size:12px;">EVALUATED (FT)</span><br><b style="font-size:18px;">{finished_evaluated}</b></div>
+                <div><span style="color:#8b949e; font-size:12px;">WON / LOST</span><br><b style="font-size:18px; color:#00e676;">{won_count}</b> / <b style="font-size:18px; color:#ff1744;">{lost_count}</b></div>
+                <div><span style="color:#8b949e; font-size:12px;">WIN RATE</span><br><b style="font-size:18px; color:#ffd600;">{round((won_count/finished_evaluated*100), 1) if finished_evaluated > 0 else 'N/A'} %</b></div>
+            </div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        if not analyzed_cards:
+            st.info("သတ်မှတ်ထားသော စံနှုန်းပြည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။")
         else:
-            filtered_fixtures = [
-                f
-                for f in raw_matches
-                if is_allowed_league(
-                    f["league"]["name"],
-                    f["league"].get("country", ""),
-                    f["teams"]["home"]["name"],
-                    f["teams"]["away"]["name"],
-                )
-            ]
+            for card in analyzed_cards:
+                ana = card["analysis"]
+                is_over = ana["signal"] == "OVER_2_5"
 
-            if not filtered_fixtures:
-                st.warning(
-                    f"ယနေ့ `{date_str}` တွင် Whitelist လိဂ်များမှ ပွဲစဉ်များ မရှိသေးပါဗျာ။"
-                )
-            else:
-                analyzed_cards = []
-                won_count = 0
-                lost_count = 0
-                finished_evaluated = 0
-
-                for fix in filtered_fixtures:
-                    f_id = fix["fixture"]["id"]
-                    h_name = fix["teams"]["home"]["name"]
-                    a_name = fix["teams"]["away"]["name"]
-                    l_name = fix["league"]["name"]
-                    c_name = fix["league"].get("country", "")
-                    match_time = convert_to_mmt(fix["fixture"]["date"])
-                    status_short = fix["fixture"]["status"]["short"]
-
-                    score_h = fix["goals"]["home"]
-                    score_a = fix["goals"]["away"]
-                    is_finished = status_short in [
-                        "FT",
-                        "AET",
-                        "PEN",
-                    ] and (score_h is not None and score_a is not None)
-
-                    # Real Prediction Call
-                    pred_res, _ = fetch_from_api(
-                        f"predictions?fixture={f_id}"
+                with st.container():
+                    st.markdown(
+                        '<div class="match-box">', unsafe_allow_html=True
                     )
-                    analysis = None
-                    if pred_res and len(pred_res) > 0:
-                        analysis = analyze_real_l5_metrics(pred_res[0])
-
-                    if analysis and analysis["signal"] != "NEUTRAL":
-                        if analysis["est_odds"] >= min_odds_filter:
-                            backtest_badge = None
-                            if is_finished:
-                                total_actual_goals = score_h + score_a
-                                finished_evaluated += 1
-                                if (
-                                    analysis["signal"] == "OVER_2_5"
-                                    and total_actual_goals >= 3
-                                ):
-                                    won_count += 1
-                                    backtest_badge = (
-                                        "WON",
-                                        f"✅ WON [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
-                                    )
-                                elif (
-                                    analysis["signal"] == "UNDER_2_5"
-                                    and total_actual_goals <= 2
-                                ):
-                                    won_count += 1
-                                    backtest_badge = (
-                                        "WON",
-                                        f"✅ WON [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
-                                    )
-                                else:
-                                    lost_count += 1
-                                    backtest_badge = (
-                                        "LOSS",
-                                        f"❌ LOST [Score: {score_h}-{score_a} ({total_actual_goals} Goals)]",
-                                    )
-
-                            analyzed_cards.append({
-                                "fixture": fix,
-                                "home": h_name,
-                                "away": a_name,
-                                "league": l_name,
-                                "country": c_name,
-                                "time": match_time,
-                                "status": status_short,
-                                "analysis": analysis,
-                                "is_finished": is_finished,
-                                "backtest": backtest_badge,
-                            })
-
-                # Performance Scorecard
-                st.markdown(
-                    f"""
-                <div class="hero-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="margin:0; color:#00f2fe;">📊 PERFORMANCE & SIGNAL SUMMARY ({date_str})</h4>
-                        <span style="font-size:12px; color:#8b949e;">API: {conn_status}</span>
-                    </div>
-                    <hr style="border-color:#222d3d; margin:10px 0;">
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; text-align:center;">
-                        <div><span style="color:#8b949e; font-size:12px;">WHITELIST MATCHES</span><br><b style="font-size:18px;">{len(filtered_fixtures)}</b></div>
-                        <div><span style="color:#8b949e; font-size:12px;">5-STAR PICKS</span><br><b style="font-size:18px; color:#00f2fe;">{len(analyzed_cards)}</b></div>
-                        <div><span style="color:#8b949e; font-size:12px;">EVALUATED (FT)</span><br><b style="font-size:18px;">{finished_evaluated}</b></div>
-                        <div><span style="color:#8b949e; font-size:12px;">WON / LOST</span><br><b style="font-size:18px; color:#00e676;">{won_count}</b> / <b style="font-size:18px; color:#ff1744;">{lost_count}</b></div>
-                        <div><span style="color:#8b949e; font-size:12px;">WIN RATE</span><br><b style="font-size:18px; color:#ffd600;">{round((won_count/finished_evaluated*100), 1) if finished_evaluated > 0 else 'N/A'} %</b></div>
-                    </div>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-
-                if not analyzed_cards:
-                    st.info(
-                        "သတ်မှတ်ထားသော စံနှုန်းပြည့်မီပြီး Odds 1.70 အထက်ရှိသည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။"
-                    )
-                else:
-                    for card in analyzed_cards:
-                        ana = card["analysis"]
-                        is_over = ana["signal"] == "OVER_2_5"
-
-                        with st.container():
+                    c1, c2, c3 = st.columns([3, 2, 2])
+                    with c1:
+                        st.markdown(
+                            f"<span class='league-badge'>🏆 {card['league']} • {card['country']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f"### ⚽ {card['home']} vs {card['away']}")
+                        st.caption(
+                            f"⏰ Time: **`{card['time']} (MMT)` | Status: **"
+                        )
+                    with c2:
+                        if is_over:
                             st.markdown(
-                                '<div class="match-box">',
+                                "<span class='badge-over'>⭐️⭐️⭐️⭐️⭐️ OVER 2.5 TARGET</span>",
                                 unsafe_allow_html=True,
                             )
-                            c1, c2, c3 = st.columns([3, 2, 2])
-                            with c1:
+                        else:
+                            st.markdown(
+                                "<span class='badge-under'>⭐️⭐️⭐️⭐️⭐️ UNDER 2.5 TARGET</span>",
+                                unsafe_allow_html=True,
+                            )
+
+                        st.markdown(
+                            f"#### Confidence: **<span style='color:#ffd600;'>{ana['confidence']}%</span>**",
+                            unsafe_allow_html=True,
+                        )
+                        st.caption(f"📊 Value Odds Line: **{ana['est_odds']}**")
+                    with c3:
+                        if card["backtest"]:
+                            res_type, res_text = card["backtest"]
+                            if res_type == "WON":
                                 st.markdown(
-                                    f"<span class='league-badge'>🏆 {card['league']} • {card['country']}</span>",
+                                    f"<div class='badge-win'>{res_text}</div>",
                                     unsafe_allow_html=True,
                                 )
+                            else:
                                 st.markdown(
-                                    f"### ⚽ {card['home']} vs {card['away']}"
-                                )
-                                st.caption(
-                                    f"⏰ Time: **`{card['time']} (MMT)` | Status: **"
-                                )
-                            with c2:
-                                if is_over:
-                                    st.markdown(
-                                        "<span class='badge-over'>⭐️⭐️⭐️⭐️⭐️ OVER 2.5 TARGET</span>",
-                                        unsafe_allow_html=True,
-                                    )
-                                else:
-                                    st.markdown(
-                                        "<span class='badge-under'>⭐️⭐️⭐️⭐️⭐️ UNDER 2.5 TARGET</span>",
-                                        unsafe_allow_html=True,
-                                    )
-
-                                st.markdown(
-                                    f"#### Confidence: **<span style='color:#ffd600;'>{ana['confidence']}%</span>**",
+                                    f"<div class='badge-loss'>{res_text}</div>",
                                     unsafe_allow_html=True,
                                 )
-                                st.caption(
-                                    f"📊 Value Odds Line: **{ana['est_odds']}**"
-                                )
-                            with c3:
-                                if card["backtest"]:
-                                    res_type, res_text = card["backtest"]
-                                    if res_type == "WON":
-                                        st.markdown(
-                                            f"<div class='badge-win'>{res_text}</div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                    else:
-                                        st.markdown(
-                                            f"<div class='badge-loss'>{res_text}</div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                else:
-                                    st.info("⏳ Match In-Play / Upcoming")
+                        else:
+                            st.info("⏳ Match Upcoming (စောင့်ကြည့်ရန်)")
 
-                            with st.expander(
-                                f"📈 View Real L5 Home/Away Metrics ({card['home']} vs {card['away']})"
-                            ):
-                                b1, b2, b3, b4 = st.columns(4)
-                                with b1:
-                                    st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME (AT HOME)</span><br><b>GF {ana['h_gf']} / GA {ana['h_ga']}</b></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with b2:
-                                    st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY (ON ROAD)</span><br><b>GF {ana['a_gf']} / GA {ana['a_ga']}</b></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with b3:
-                                    st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME L5 OVER</span><br><b style='color:#00f2fe;'>{ana['home_l5_over']}%</b></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with b4:
-                                    st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY L5 OVER</span><br><b style='color:#00e676;'>{ana['away_l5_over']}%</b></div>",
-                                        unsafe_allow_html=True,
-                                    )
+                    with st.expander(
+                        f"📈 View Real L5 Metrics ({card['home']} vs {card['away']})"
+                    ):
+                        b1, b2, b3, b4 = st.columns(4)
+                        with b1:
+                            st.markdown(
+                                f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME (AT HOME)</span><br><b>GF {ana['h_gf']} / GA {ana['h_ga']}</b></div>",
+                                unsafe_allow_html=True,
+                            )
+                        with b2:
+                            st.markdown(
+                                f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY (ON ROAD)</span><br><b>GF {ana['a_gf']} / GA {ana['a_ga']}</b></div>",
+                                unsafe_allow_html=True,
+                            )
+                        with b3:
+                            st.markdown(
+                                f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME L5 OVER</span><br><b style='color:#00f2fe;'>{ana['home_l5_over']}%</b></div>",
+                                unsafe_allow_html=True,
+                            )
+                        with b4:
+                            st.markdown(
+                                f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY L5 OVER</span><br><b style='color:#00e676;'>{ana['away_l5_over']}%</b></div>",
+                                unsafe_allow_html=True,
+                            )
 
-                                st.markdown("##### ⚡ Confidence Boost Factors:")
-                                for r in ana["boosts"]:
-                                    st.write(f"• {r}")
+                        st.markdown("##### ⚡ Confidence Boost Factors:")
+                        for r in ana["boosts"]:
+                            st.write(f"• {r}")
 
-                            st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
