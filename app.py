@@ -76,7 +76,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ==================== 2. API KEY ROTATION & FALLBACK ====================
+# ==================== 2. API KEY ENGINE ====================
 raw_keys = st.secrets.get("API_KEY", "")
 API_KEYS = [
     k.strip().replace('"', "").replace("'", "").lower()
@@ -101,11 +101,11 @@ def fetch_from_api(endpoint):
             if "response" in data:
                 err = data.get("errors")
                 if not err:
-                    return data["response"], f"Key #{idx+1} (OK)"
+                    return data["response"], f"Key #{idx+1} (Active)"
                 else:
                     errors_log.append(f"Key #{idx+1}: {err}")
             else:
-                errors_log.append(f"Key #{idx+1}: No response key")
+                errors_log.append(f"Key #{idx+1}: No Response Body")
         except Exception as e:
             errors_log.append(f"Key #{idx+1}: {str(e)}")
 
@@ -123,21 +123,21 @@ def convert_to_mmt(iso_time_str):
         return iso_time_str[11:16]
 
 
-# ==================== 3. STRICT LEAGUE WHITELIST FILTER ====================
+# ==================== 3. LEAGUE WHITELIST RULES ====================
 ALLOWED_CONFIG = {
-    # 5 Major Countries with Top Tier + 2nd Tier
+    # 5 Big Countries: Top Tier + 2nd Tier
     "england": ["premier league", "championship"],
-    "spain": ["la liga", "segunda divisi", "laliga 2"],
+    "spain": ["la liga", "segunda division", "laliga 2"],
     "france": ["ligue 1", "ligue 2"],
     "germany": ["bundesliga", "2. bundesliga"],
     "italy": ["serie a", "serie b"],
     # Top Tier Only Countries
-    "argentina": ["liga profesional", "primera divisi"],
+    "argentina": ["liga profesional", "primera division"],
     "australia": ["a-league"],
     "austria": ["bundesliga"],
-    "belgium": ["jupiler pro league", "pro league", "first division a"],
+    "belgium": ["pro league", "first division a", "jupiler"],
     "brazil": ["serie a"],
-    "chile": ["primera divisi"],
+    "chile": ["primera division"],
     "china": ["super league", "csl"],
     "colombia": ["primera a"],
     "croatia": ["hnl", "1. hnl"],
@@ -148,7 +148,7 @@ ALLOWED_CONFIG = {
     "mexico": ["liga mx"],
     "netherlands": ["eredivisie"],
     "norway": ["eliteserien"],
-    "peru": ["liga 1", "primera divisi"],
+    "peru": ["liga 1", "primera division"],
     "poland": ["ekstraklasa"],
     "portugal": ["primeira liga", "liga portugal"],
     "saudi arabia": ["saudi pro league", "pro league"],
@@ -157,7 +157,7 @@ ALLOWED_CONFIG = {
     "switzerland": ["super league"],
     "turkey": ["super lig", "süper lig"],
     "usa": ["major league soccer", "mls"],
-    # Continental & World Tournaments
+    # Major Tournaments
     "world": [
         "uefa champions league",
         "uefa europa league",
@@ -165,7 +165,6 @@ ALLOWED_CONFIG = {
         "uefa nations league",
         "copa libertadores",
         "copa sudamericana",
-        "world cup",
     ],
 }
 
@@ -187,7 +186,6 @@ BLACKLIST_WORDS = [
     "reserve",
     "reserves",
     "youth",
-    "sub-20",
     "women",
     "fem",
     "amateur",
@@ -207,8 +205,6 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     combined = (
         f"{league_name} {country_name} {home_name} {away_name}".lower()
     )
-
-    # 1. Reject Russia and blacklisted keywords
     if any(b in combined for b in BLACKLIST_WORDS) or re.search(
         r"\bu\s?-?\d{2}\b", combined
     ):
@@ -217,13 +213,11 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     l_low = league_name.lower()
     c_low = country_name.lower() if country_name else ""
 
-    # 2. Check by country config
     for c_key, valid_leagues in ALLOWED_CONFIG.items():
         if c_key in c_low or c_key in l_low:
             if any(vl in l_low for vl in valid_leagues):
                 return True
 
-    # 3. Check continental / world tournaments directly
     for wl in ALLOWED_CONFIG["world"]:
         if wl in l_low:
             return True
@@ -231,7 +225,7 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     return False
 
 
-# ==================== 4. 50' MINUTE STATS EVALUATION ====================
+# ==================== 4. EVALUATE 50' STATS ====================
 def evaluate_50min_signal(stats_data):
     def get_stat(team_idx, stat_type):
         for item in stats_data[team_idx].get("statistics", []):
@@ -334,23 +328,22 @@ with tab_live:
 
     raw_live, status_msg = fetch_from_api("fixtures?live=all")
 
-    # Apply Whitelist Filter
-    live_fixtures = [
-        f
-        for f in raw_live
-        if is_allowed_league(
-            f["league"]["name"],
-            f["league"].get("country", ""),
-            f["teams"]["home"]["name"],
-            f["teams"]["away"]["name"],
-        )
-    ]
-
-    if not live_fixtures:
-        st.info("လက်ရှိတွင် စောင့်ကြည့်ရန် Whitelist Live ပွဲစဉ်များ မရှိသေးပါဗျာ။")
+    if not raw_live:
+        st.error(f"⚠️ Live Connection Info: `{status_msg}`")
     else:
+        live_fixtures = [
+            f
+            for f in raw_live
+            if is_allowed_league(
+                f["league"]["name"],
+                f["league"].get("country", ""),
+                f["teams"]["home"]["name"],
+                f["teams"]["away"]["name"],
+            )
+        ]
+
         st.caption(
-            f"✅ Verified Active Leagues: **{len(live_fixtures)} ပွဲ** &nbsp;|&nbsp; Status: **{status_msg}**"
+            f"✅ Status: **{status_msg}** &nbsp;|&nbsp; Whitelist Live: **{len(live_fixtures)} ပွဲ** (စုစုပေါင်း Live: {len(raw_live)} ပွဲ)"
         )
 
         golden_window_matches = [
@@ -363,7 +356,7 @@ with tab_live:
         st.markdown(
             """
         <div class="radar-container">
-            <h4 style="margin:0; color:#00f2fe;">⚡ 50' MINUTE ACTION RADAR (ရွှေရောင် အချိန်ပွဲစဉ်များ)</h4>
+            <h4 style="margin:0; color:#00f2fe;">⚡ 50' MINUTE ACTION RADAR</h4>
             <p style="margin:5px 0 0 0; font-size:13px; color:#8b949e;">
                 မိနစ် ၄၅ မှ ၆၅ အတွင်း ရောက်ရှိနေသော Whitelist Major ပွဲစဉ်များ
             </p>
@@ -411,7 +404,7 @@ with tab_live:
             )
 
         st.markdown(
-            f"### 📋 Verified Match Directory ({len(live_fixtures)} ပွဲ)"
+            f"### 📋 Verified Live Directory ({len(live_fixtures)} ပွဲ)"
         )
 
         for fix in live_fixtures:
@@ -558,40 +551,62 @@ with tab_live:
 
 # ==================== TAB 2: UPCOMING PRE-MATCH ====================
 with tab_prematch:
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    raw_today, _ = fetch_from_api(f"fixtures?date={today_str}")
+    # MMT Date Sync
+    mmt_today = datetime.now(MMT_TIMEZONE).strftime("%Y-%m-%d")
+    raw_today, pre_status = fetch_from_api(f"fixtures?date={mmt_today}")
 
-    upcoming_list = []
-    for fix in raw_today:
-        if fix["fixture"]["status"]["short"] in ["NS", "TBD"]:
-            l_name = fix["league"]["name"]
-            country_name = fix["league"].get("country", "")
-            h_name = fix["teams"]["home"]["name"]
-            a_name = fix["teams"]["away"]["name"]
-
-            if is_allowed_league(l_name, country_name, h_name, a_name):
-                upcoming_list.append({
-                    "home": h_name,
-                    "away": a_name,
-                    "league": l_name,
-                    "country": country_name,
-                    "time_mmt": convert_to_mmt(fix["fixture"]["date"]),
-                })
-
-    if not upcoming_list:
-        st.info("ဒီနေ့အတွက် Whitelist ပွဲကြိုများ မရှိသေးပါဗျာ။")
+    if not raw_today:
+        st.error(f"⚠️ Pre-Match Fetch Info: `{pre_status}`")
+        st.info("💡 API Key Limit သို့မဟုတ် Connection Status ကို စစ်ဆေးပေးပါဗျာ။")
     else:
-        st.subheader(
-            f"⏳ Today's Verified Pre-Matches ({len(upcoming_list)} ပွဲ)"
+        upcoming_list = []
+        for fix in raw_today:
+            # Matches not started or in-play today
+            if fix["fixture"]["status"]["short"] in [
+                "NS",
+                "TBD",
+                "1H",
+                "HT",
+                "2H",
+            ]:
+                l_name = fix["league"]["name"]
+                country_name = fix["league"].get("country", "")
+                h_name = fix["teams"]["home"]["name"]
+                a_name = fix["teams"]["away"]["name"]
+
+                if is_allowed_league(l_name, country_name, h_name, a_name):
+                    upcoming_list.append({
+                        "home": h_name,
+                        "away": a_name,
+                        "league": l_name,
+                        "country": country_name,
+                        "time_mmt": convert_to_mmt(fix["fixture"]["date"]),
+                        "status": fix["fixture"]["status"]["short"],
+                    })
+
+        st.caption(
+            f"✅ Connection: **{pre_status}** &nbsp;|&nbsp; Whitelist ပွဲများ: **{len(upcoming_list)} ပွဲ** (ယနေ့ စုစုပေါင်းပွဲစဉ်: {len(raw_today)} ပွဲ)"
         )
-        for m in upcoming_list:
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"### ⚽ {m['home']} vs {m['away']}")
-                    st.write(
-                        f"🏆 **{m['league']} ({m['country']})** | ⏰ စတင်မည့်အချိန်: **`{m['time_mmt']} (MMT)`**"
-                    )
-                with col2:
-                    st.metric(label="Market Status", value="Verified Pro")
-                st.divider()
+
+        if not upcoming_list:
+            st.warning(
+                "ယနေ့အတွက် ရွေးချယ်ထားသော Whitelist လိဂ်များတွင် ပွဲစဉ် မရှိသေးပါဗျာ။"
+            )
+        else:
+            st.subheader(
+                f"⏳ Today's Verified Pre-Matches ({len(upcoming_list)} ပွဲ)"
+            )
+            for m in upcoming_list:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"### ⚽ {m['home']} vs {m['away']}")
+                        st.write(
+                            f"🏆 **{m['league']} ({m['country']})** | ⏰ စတင်မည့်အချိန်: **`{m['time_mmt']} (MMT)`**"
+                        )
+                    with col2:
+                        st.metric(
+                            label="Match Status",
+                            value=f"Pro ({m['status']})",
+                        )
+                    st.divider()
