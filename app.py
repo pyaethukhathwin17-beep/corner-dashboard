@@ -100,7 +100,6 @@ if not API_KEYS:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_from_api_cached(endpoint):
-    """Fetches data with built-in rate-limit protection and retries"""
     for idx, key in enumerate(API_KEYS):
         for attempt in range(2):
             try:
@@ -114,14 +113,14 @@ def fetch_from_api_cached(endpoint):
                     if not err:
                         return data["response"], f"Key #{idx+1} (OK)"
                     elif "rateLimit" in str(err):
-                        time.sleep(6)  # Wait for 10-per-min window to clear
+                        time.sleep(6)
                         continue
                     else:
                         return [], f"Key #{idx+1}: {err}"
             except Exception as e:
                 time.sleep(1)
                 continue
-    return [], "Rate limit reached or connection timeout"
+    return [], "Rate limit or connection issue"
 
 
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
@@ -243,7 +242,7 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     return False
 
 
-# ==================== 4. REAL L5 STATS ENGINE ====================
+# ==================== 4. REAL STATS ENGINE ====================
 def analyze_real_l5_metrics(pred_payload):
     try:
         teams_data = pred_payload.get("teams", {})
@@ -469,7 +468,7 @@ def analyze_real_l5_metrics(pred_payload):
         return None
 
 
-# ==================== MAIN APPLICATION UI ====================
+# ==================== MAIN UI ====================
 st.markdown(
     "## ⚽ Pre-Match <span style='color:#00f2fe;'>Over/Under Intelligence Pro</span>",
     unsafe_allow_html=True,
@@ -500,18 +499,18 @@ with c_d4:
 
 date_str = st.session_state.target_date.strftime("%Y-%m-%d")
 
-# Clean Header Display
 st.markdown(
-    f"### 📋 Matches for Date: `{date_str}` (MMT)", unsafe_allow_html=True
+    f"### 📋 Matches for Date: `{date_str}` (Asia/Yangon Time)",
+    unsafe_allow_html=True,
 )
 
-raw_matches, conn_status = fetch_from_api_cached(f"fixtures?date={date_str}")
+# API Call with explicit Timezone Parameter
+raw_matches, conn_status = fetch_from_api_cached(
+    f"fixtures?date={date_str}&timezone=Asia/Yangon"
+)
 
 if not raw_matches:
     st.error(f"⚠️ API Info: `{conn_status}`")
-    st.info(
-        "💡 Rate Limit ကြောင့် ဖြစ်ပါက စက္ကန့် ၃၀ ခန့် စောင့်ပြီး ပြန်လည် Refresh လုပ်ပေးပါဗျာ။"
-    )
 else:
     filtered_fixtures = [
         f
@@ -533,7 +532,7 @@ else:
 
     if not filtered_fixtures:
         st.warning(
-            f"`{date_str}` တွင် စစ်ဆေးရန် Whitelist ပွဲစဉ် မရှိပါ (သို့မဟုတ် ပွဲများ အားလုံး ပြီးဆုံးသွားပါပြီ)။"
+            f"`{date_str}` တွင် Whitelist စံနှုန်းဝင် ပွဲစဉ်များ မရှိပါ (သို့မဟုတ် ပွဲများ အားလုံး ပြီးဆုံးသွားပါပြီ)။"
         )
     else:
         analyzed_cards = []
@@ -541,7 +540,6 @@ else:
         lost_count = 0
         finished_evaluated = 0
 
-        # Progress Indicator during scanning
         prog_bar = st.progress(0, text="Analyzing Whitelist Fixtures...")
         total_f = len(filtered_fixtures)
 
@@ -616,7 +614,7 @@ else:
 
         prog_bar.empty()
 
-        # Summary Header
+        # Summary
         st.markdown(
             f"""
         <div class="hero-card">
@@ -639,7 +637,7 @@ else:
 
         if not analyzed_cards:
             st.info(
-                "သတ်မှတ်ထားသော စံနှုန်းပြည့်မီသည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။"
+                "သတ်မှတ်ထားသော စံနှုန်းပြည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။"
             )
         else:
             for card in analyzed_cards:
