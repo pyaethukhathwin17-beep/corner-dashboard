@@ -1,5 +1,6 @@
-import re
 from datetime import datetime, timedelta, timezone
+import re
+import time
 import requests
 import streamlit as st
 
@@ -84,7 +85,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ==================== 2. API ROTATION & CACHE ====================
+# ==================== 2. RATE LIMIT PROTECTED API ENGINE ====================
 raw_keys = st.secrets.get("API_KEY", "")
 API_KEYS = [
     k.strip().replace('"', "").replace("'", "").lower()
@@ -97,28 +98,30 @@ if not API_KEYS:
     st.stop()
 
 
-@st.cache_data(ttl=300)
-def fetch_from_api(endpoint):
-    errors_log = []
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_from_api_cached(endpoint):
+    """Fetches data with built-in rate-limit protection and retries"""
     for idx, key in enumerate(API_KEYS):
-        try:
-            url = f"https://v3.football.api-sports.io/{endpoint}"
-            headers = {"x-apisports-key": key}
-            res = requests.get(url, headers=headers, timeout=10)
-            data = res.json()
+        for attempt in range(2):
+            try:
+                url = f"https://v3.football.api-sports.io/{endpoint}"
+                headers = {"x-apisports-key": key}
+                res = requests.get(url, headers=headers, timeout=10)
+                data = res.json()
 
-            if "response" in data:
-                err = data.get("errors")
-                if not err:
-                    return data["response"], f"Key #{idx+1} (OK)"
-                else:
-                    errors_log.append(f"Key #{idx+1}: {err}")
-            else:
-                errors_log.append(f"Key #{idx+1}: No Response Body")
-        except Exception as e:
-            errors_log.append(f"Key #{idx+1}: {str(e)}")
-
-    return [], " | ".join(errors_log)
+                if "response" in data:
+                    err = data.get("errors")
+                    if not err:
+                        return data["response"], f"Key #{idx+1} (OK)"
+                    elif "rateLimit" in str(err):
+                        time.sleep(6)  # Wait for 10-per-min window to clear
+                        continue
+                    else:
+                        return [], f"Key #{idx+1}: {err}"
+            except Exception as e:
+                time.sleep(1)
+                continue
+    return [], "Rate limit reached or connection timeout"
 
 
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
@@ -132,7 +135,7 @@ def convert_to_mmt(iso_time_str):
         return iso_time_str[11:16]
 
 
-# ==================== 3. STRICT FILTER & CLEANER ====================
+# ==================== 3. STRICT WHITELIST FILTER ====================
 ALLOWED_CONFIG = {
     "england": ["premier league", "championship"],
     "spain": ["la liga", "segunda division", "laliga 2"],
@@ -240,7 +243,7 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     return False
 
 
-# ==================== 4. REAL STATS ENGINE ====================
+# ==================== 4. REAL L5 STATS ENGINE ====================
 def analyze_real_l5_metrics(pred_payload):
     try:
         teams_data = pred_payload.get("teams", {})
@@ -466,7 +469,7 @@ def analyze_real_l5_metrics(pred_payload):
         return None
 
 
-# ==================== MAIN UI ====================
+# ==================== MAIN APPLICATION UI ====================
 st.markdown(
     "## ⚽ Pre-Match <span style='color:#00f2fe;'>Over/Under Intelligence Pro</span>",
     unsafe_allow_html=True,
@@ -497,15 +500,18 @@ with c_d4:
 
 date_str = st.session_state.target_date.strftime("%Y-%m-%d")
 
+# Clean Header Display
 st.markdown(
-    f"### 📋 Matches for Date: **`<span style='color:#00f2fe;'>{date_str}</span>`** (MMT)",
-    unsafe_allow_html=True,
+    f"### 📋 Matches for Date: `{date_str}` (MMT)", unsafe_allow_html=True
 )
 
-raw_matches, conn_status = fetch_from_api(f"fixtures?date={date_str}")
+raw_matches, conn_status = fetch_from_api_cached(f"fixtures?date={date_str}")
 
 if not raw_matches:
     st.error(f"⚠️ API Info: `{conn_status}`")
+    st.info(
+        "💡 Rate Limit ကြောင့် ဖြစ်ပါက စက္ကန့် ၃၀ ခန့် စောင့်ပြီး ပြန်လည် Refresh လုပ်ပေးပါဗျာ။"
+    )
 else:
     filtered_fixtures = [
         f
@@ -527,7 +533,7 @@ else:
 
     if not filtered_fixtures:
         st.warning(
-            f"`{date_str}` တွင် စစ်ဆေးရန် Whitelist ပွဲစဉ် မရှိပါ (သို့မဟုတ် ပွဲစဉ်များ အားလုံး ပြီးဆုံးသွားပါပြီ)။"
+            f"`{date_str}` တွင် စစ်ဆေးရန် Whitelist ပွဲစဉ် မရှိပါ (သို့မဟုတ် ပွဲများ အားလုံး ပြီးဆုံးသွားပါပြီ)။"
         )
     else:
         analyzed_cards = []
@@ -535,7 +541,15 @@ else:
         lost_count = 0
         finished_evaluated = 0
 
-        for fix in filtered_fixtures:
+        # Progress Indicator during scanning
+        prog_bar = st.progress(0, text="Analyzing Whitelist Fixtures...")
+        total_f = len(filtered_fixtures)
+
+        for i, fix in enumerate(filtered_fixtures):
+            prog_bar.progress(
+                (i + 1) / total_f,
+                text=f"Analyzing {i+1}/{total_f}: {fix['teams']['home']['name']} vs {fix['teams']['away']['name']}",
+            )
             f_id = fix["fixture"]["id"]
             h_name = fix["teams"]["home"]["name"]
             a_name = fix["teams"]["away"]["name"]
@@ -552,7 +566,7 @@ else:
                 "PEN",
             ] and (score_h is not None and score_a is not None)
 
-            pred_res, _ = fetch_from_api(f"predictions?fixture={f_id}")
+            pred_res, _ = fetch_from_api_cached(f"predictions?fixture={f_id}")
             analysis = None
             if pred_res and len(pred_res) > 0:
                 analysis = analyze_real_l5_metrics(pred_res[0])
@@ -600,13 +614,15 @@ else:
                     "backtest": backtest_badge,
                 })
 
-        # Summary
+        prog_bar.empty()
+
+        # Summary Header
         st.markdown(
             f"""
         <div class="hero-card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h4 style="margin:0; color:#00f2fe;">📊 PERFORMANCE SUMMARY ({date_str})</h4>
-                <span style="font-size:12px; color:#8b949e;">API: {conn_status}</span>
+                <span style="font-size:12px; color:#8b949e;">API Status: {conn_status}</span>
             </div>
             <hr style="border-color:#222d3d; margin:10px 0;">
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; text-align:center;">
@@ -622,7 +638,9 @@ else:
         )
 
         if not analyzed_cards:
-            st.info("သတ်မှတ်ထားသော စံနှုန်းပြည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။")
+            st.info(
+                "သတ်မှတ်ထားသော စံနှုန်းပြည့်မီသည့် ၅ ကြယ်ပွဲစဉ် မတွေ့ရှိသေးပါဗျာ။"
+            )
         else:
             for card in analyzed_cards:
                 ana = card["analysis"]
