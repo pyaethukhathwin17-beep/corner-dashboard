@@ -245,11 +245,11 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     return False
 
 
-# ==================== 4. ACCURATE L5 HOME vs L5 AWAY ENGINE ====================
+# ==================== 4. STRICT STATS VALIDATOR ENGINE ====================
 def analyze_real_l5_metrics(pred_payload):
     try:
         teams_data = pred_payload.get("teams", {})
-        comp = pred_payload.get("comparison", {})
+        predictions = pred_payload.get("predictions", {})
         h_data = teams_data.get("home", {})
         a_data = teams_data.get("away", {})
 
@@ -289,6 +289,7 @@ def analyze_real_l5_metrics(pred_payload):
             or 0.0
         )
 
+        # Fallback to total if early season
         if h_gf == 0.0:
             h_gf = float(
                 h_data.get("league", {})
@@ -326,31 +327,102 @@ def analyze_real_l5_metrics(pred_payload):
                 or 1.2
             )
 
-        # 3. Exact Home L5 (Home) & Away L5 (Away) Over/Under %
-        # Compute exact rates from home/away match goal distributions
-        home_l5_match_avg = h_gf + h_ga
-        away_l5_match_avg = a_gf + a_ga
-
-        # Accurate Over 2.5 % derivation for Home Team (at Home) and Away Team (on Road)
-        home_l5_over = int(
-            min(100, max(10, (home_l5_match_avg / 2.7) * 60))
+        # 3. L5 Actual Total Goals Count
+        h_l5_gf = float(
+            h_data.get("last_5", {}).get("goals", {}).get("for", {}).get("total", 0)
+            or 0
         )
-        away_l5_over = int(
-            min(100, max(10, (away_l5_match_avg / 2.7) * 60))
+        h_l5_ga = float(
+            h_data.get("last_5", {})
+            .get("goals", {})
+            .get("against", {})
+            .get("total", 0)
+            or 0
+        )
+        a_l5_gf = float(
+            a_data.get("last_5", {}).get("goals", {}).get("for", {}).get("total", 0)
+            or 0
+        )
+        a_l5_ga = float(
+            a_data.get("last_5", {})
+            .get("goals", {})
+            .get("against", {})
+            .get("total", 0)
+            or 0
         )
 
+        home_l5_tot = h_l5_gf + h_l5_ga
+        away_l5_tot = a_l5_gf + a_l5_ga
+
+        # 4. Strict Over/Under % Calculation from Total L5 Goal Counts
+        # (For Over 2.5 > 60%, a team must have at least 14 total goals across 5 matches)
+        home_l5_over = int(min(100, max(20, (home_l5_tot / 15.0) * 75)))
+        away_l5_over = int(min(100, max(20, (away_l5_tot / 15.0) * 75)))
         home_l5_under = 100 - home_l5_over
         away_l5_under = 100 - away_l5_over
 
-        # 4. Individual BTTS % for Home (at Home) and Away (on Road)
-        home_l5_btts = int(
-            min(100, max(15, (h_gf / (h_gf + 0.5) * (h_ga / (h_ga + 0.4))) * 100))
+        # 5. Exact Home & Away BTTS calculation using Clean Sheet & Failed to Score data
+        h_played_home = int(
+            h_data.get("league", {})
+            .get("fixtures", {})
+            .get("played", {})
+            .get("home", 10)
+            or 10
         )
-        away_l5_btts = int(
-            min(100, max(15, (a_gf / (a_gf + 0.5) * (a_ga / (a_ga + 0.4))) * 100))
+        h_cs_home = int(
+            h_data.get("league", {}).get("clean_sheet", {}).get("home", 2) or 2
+        )
+        h_fts_home = int(
+            h_data.get("league", {}).get("failed_to_score", {}).get("home", 2)
+            or 2
         )
 
-        # Fair Value Odds
+        a_played_away = int(
+            a_data.get("league", {})
+            .get("fixtures", {})
+            .get("played", {})
+            .get("away", 10)
+            or 10
+        )
+        a_cs_away = int(
+            a_data.get("league", {}).get("clean_sheet", {}).get("away", 2) or 2
+        )
+        a_fts_away = int(
+            a_data.get("league", {}).get("failed_to_score", {}).get("away", 2)
+            or 2
+        )
+
+        home_l5_btts = int(
+            max(
+                10,
+                min(
+                    95,
+                    (
+                        (h_played_home - h_cs_home - h_fts_home)
+                        / max(1, h_played_home)
+                    )
+                    * 100,
+                ),
+            )
+        )
+        away_l5_btts = int(
+            max(
+                10,
+                min(
+                    95,
+                    (
+                        (a_played_away - a_cs_away - a_fts_away)
+                        / max(1, a_played_away)
+                    )
+                    * 100,
+                ),
+            )
+        )
+
+        # 6. Official Model Validation from API
+        api_under_over = str(predictions.get("under_over", "")).strip()
+
+        # Odds Estimation
         est_over_odds = round(
             max(
                 1.72,
@@ -377,13 +449,17 @@ def analyze_real_l5_metrics(pred_payload):
         boosts = []
 
         # ================= STRICT OVER 2.5 RULES =================
-        # 1. Home L5 (Home) Over 2.5 > 60%
-        # 2. Away L5 (Away) Over 2.5 > 60%
-        # 3. Home L5 (Home) BTTS > 60%
-        # 4. Away L5 (Away) BTTS > 60%
-        # 5. Home GF > 1.5, Home GA > 1.0, Away GF > 1.0, Away GA > 1.0
+        # Requirements:
+        # 1. API Official prediction MUST NOT be "-2.5" or "-1.5"
+        # 2. Both Home and Away L5 Total Goals >= 14 (Avg >= 2.8 goals/match)
+        # 3. Home GF > 1.5 & Home GA > 1.0
+        # 4. Away GF > 1.0 & Away GA > 1.0
+        # 5. Home BTTS > 60% & Away BTTS > 60%
         is_over_base = (
-            home_l5_over > 60
+            api_under_over not in ["-2.5", "-1.5"]
+            and home_l5_tot >= 14
+            and away_l5_tot >= 14
+            and home_l5_over > 60
             and away_l5_over > 60
             and home_l5_btts > 60
             and away_l5_btts > 60
@@ -396,35 +472,36 @@ def analyze_real_l5_metrics(pred_payload):
         if is_over_base:
             signal = "OVER_2_5"
             confidence = 70
-            boosts.append("✅ Base Criteria Met (70% Base)")
-            if home_l5_over >= 80 and away_l5_over >= 80:
+            boosts.append("✅ All Strict Base Criteria Met (70% Base)")
+            if home_l5_tot >= 17 and away_l5_tot >= 17:
                 confidence += 6
                 boosts.append(
-                    f"🚀 Home & Away L5 Over $\ge$ 80% (H: {home_l5_over}%, A: {away_l5_over}%) +6%"
+                    f"🚀 Massive L5 Goals (Home: {int(home_l5_tot)}, Away: {int(away_l5_tot)}) +6%"
                 )
             if home_l5_btts >= 75 and away_l5_btts >= 75:
                 confidence += 5
                 boosts.append(
-                    f"🎯 Both Teams BTTS $\ge$ 75% (H: {home_l5_btts}%, A: {away_l5_btts}%) +5%"
+                    f"🎯 High BTTS Rates (Home: {home_l5_btts}%, Away: {away_l5_btts}%) +5%"
                 )
             if h_gf >= 2.0:
                 confidence += 4
-                boosts.append(f"⚽ Strong Home Attack (GF {h_gf:.2f}) +4%")
+                boosts.append(f"⚽ Elite Home Attack (GF {h_gf:.2f}) +4%")
             if a_gf >= 1.5:
                 confidence += 4
                 boosts.append(f"👟 Active Away Attack (GF {a_gf:.2f}) +4%")
-            if h_ga >= 1.3 and a_ga >= 1.4:
-                confidence += 4
-                boosts.append("🛡️ High Conceding Defense Lines +4%")
 
         # ================= STRICT UNDER 2.5 RULES =================
-        # 1. Home L5 (Home) Under 2.5 > 60%
-        # 2. Away L5 (Away) Under 2.5 > 60%
-        # 3. Home L5 (Home) BTTS < 50%
-        # 4. Away L5 (Away) BTTS < 50%
-        # 5. Home GF < 1.3, Home GA < 1.0, Away GF < 1.1, Away GA < 1.2
+        # Requirements:
+        # 1. API Official prediction MUST NOT be "+2.5" or "+3.5"
+        # 2. Both Home and Away L5 Total Goals <= 10 (Avg <= 2.0 goals/match)
+        # 3. Home GF < 1.3 & Home GA < 1.0
+        # 4. Away GF < 1.1 & Away GA < 1.2
+        # 5. Home BTTS < 50% & Away BTTS < 50%
         is_under_base = (
-            home_l5_under > 60
+            api_under_over not in ["+2.5", "+3.5"]
+            and home_l5_tot <= 10
+            and away_l5_tot <= 10
+            and home_l5_under > 60
             and away_l5_under > 60
             and home_l5_btts < 50
             and away_l5_btts < 50
@@ -437,16 +514,16 @@ def analyze_real_l5_metrics(pred_payload):
         if is_under_base and not is_over_base:
             signal = "UNDER_2_5"
             confidence = 70
-            boosts.append("✅ Base Criteria Met (70% Base)")
-            if home_l5_under >= 80 and away_l5_under >= 80:
+            boosts.append("✅ All Strict Base Criteria Met (70% Base)")
+            if home_l5_tot <= 8 and away_l5_tot <= 8:
                 confidence += 6
                 boosts.append(
-                    f"📉 Home & Away L5 Under $\ge$ 80% (H: {home_l5_under}%, A: {away_l5_under}%) +6%"
+                    f"📉 Extremely Low L5 Goals (Home: {int(home_l5_tot)}, Away: {int(away_l5_tot)}) +6%"
                 )
             if home_l5_btts <= 35 and away_l5_btts <= 35:
                 confidence += 5
                 boosts.append(
-                    f"🚫 Both Teams Low BTTS $\le$ 35% (H: {home_l5_btts}%, A: {away_l5_btts}%) +5%"
+                    f"🚫 Both Teams Low BTTS $\le$ 35% (Home: {home_l5_btts}%, Away: {away_l5_btts}%) +5%"
                 )
             if h_ga <= 0.7:
                 confidence += 4
@@ -464,12 +541,15 @@ def analyze_real_l5_metrics(pred_payload):
             "h_ga": round(h_ga, 2),
             "a_gf": round(a_gf, 2),
             "a_ga": round(a_ga, 2),
+            "home_l5_tot": int(home_l5_tot),
+            "away_l5_tot": int(away_l5_tot),
             "home_l5_over": home_l5_over,
             "away_l5_over": away_l5_over,
             "home_l5_under": home_l5_under,
             "away_l5_under": away_l5_under,
             "home_l5_btts": home_l5_btts,
             "away_l5_btts": away_l5_btts,
+            "api_advice": api_under_over,
             "est_odds": est_over_odds if signal == "OVER_2_5" else est_under_odds,
             "boosts": boosts,
         }
@@ -720,43 +800,31 @@ else:
                                     st.info("⏳ Match Upcoming (စောင့်ကြည့်ရန်)")
 
                             with st.expander(
-                                f"📈 View Strict L5 Home/Away Metrics ({card['home']} vs {card['away']})"
+                                f"📈 View Strict Stats ({card['home']} vs {card['away']})"
                             ):
                                 b1, b2, b3, b4 = st.columns(4)
                                 with b1:
-                                    if is_over:
-                                        st.markdown(
-                                            f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME (AT HOME) L5 OVER</span><br><b style='color:#00f2fe;'>{ana['home_l5_over']}%</b></div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                    else:
-                                        st.markdown(
-                                            f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME (AT HOME) L5 UNDER</span><br><b style='color:#00f2fe;'>{ana['home_l5_under']}%</b></div>",
-                                            unsafe_allow_html=True,
-                                        )
+                                    st.markdown(
+                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME L5 GOALS TOT</span><br><b style='color:#00f2fe;'>{ana['home_l5_tot']} Goals</b></div>",
+                                        unsafe_allow_html=True,
+                                    )
                                 with b2:
-                                    if is_over:
-                                        st.markdown(
-                                            f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY (ON ROAD) L5 OVER</span><br><b style='color:#00f2fe;'>{ana['away_l5_over']}%</b></div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                    else:
-                                        st.markdown(
-                                            f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY (ON ROAD) L5 UNDER</span><br><b style='color:#00f2fe;'>{ana['away_l5_under']}%</b></div>",
-                                            unsafe_allow_html=True,
-                                        )
+                                    st.markdown(
+                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY L5 GOALS TOT</span><br><b style='color:#00f2fe;'>{ana['away_l5_tot']} Goals</b></div>",
+                                        unsafe_allow_html=True,
+                                    )
                                 with b3:
                                     st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME L5 BTTS</span><br><b style='color:#00e676;'>{ana['home_l5_btts']}%</b></div>",
+                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>HOME BTTS RATE</span><br><b style='color:#00e676;'>{ana['home_l5_btts']}%</b></div>",
                                         unsafe_allow_html=True,
                                     )
                                 with b4:
                                     st.markdown(
-                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY L5 BTTS</span><br><b style='color:#00e676;'>{ana['away_l5_btts']}%</b></div>",
+                                        f"<div class='stat-box'><span style='font-size:11px; color:#8b949e;'>AWAY BTTS RATE</span><br><b style='color:#00e676;'>{ana['away_l5_btts']}%</b></div>",
                                         unsafe_allow_html=True,
                                     )
 
-                                st.markdown("##### ⚡ Confidence Boost Factors:")
+                                st.markdown("##### ⚡ Active Boosts & Model Info:")
                                 for r in ana["boosts"]:
                                     st.write(f"• {r}")
 
