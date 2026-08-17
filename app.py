@@ -7,121 +7,132 @@ import streamlit as st
 # ============================================================
 # 1. PAGE CONFIG
 # ============================================================
-
 st.set_page_config(
-    page_title="Pre-Match Over/Under Intelligence Pro (Single Match)",
+    page_title="Pre-Match Over/Under Intelligence Pro",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 # ============================================================
-# 2. CYBER DARK THEME
+# 2. CYBER SPORTS LIVESCORE THEME (CSS)
 # ============================================================
-
 st.markdown(
     """
 <style>
-.stApp {
-    background-color: #0b0e14;
-    color: #e6edf3;
-}
-.hero-card {
-    background: linear-gradient(135deg, #131b26 0%, #1c2636 100%);
-    border: 1px solid #00f2fe44;
-    border-radius: 12px;
-    padding: 18px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(0, 242, 254, 0.1);
-}
-.match-box {
-    background-color: #121824;
-    border: 1px solid #222d3d;
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-}
-.league-badge {
-    background-color: #1f293d;
-    color: #00f2fe;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-weight: bold;
-    font-size: 13px;
-    display: inline-block;
-}
-.badge-win {
-    background-color: #00e676;
-    color: #042410;
-    padding: 5px 10px;
-    border-radius: 6px;
-    font-weight: 900;
-    font-size: 13px;
-}
-.badge-loss {
-    background-color: #ff1744;
-    color: #ffffff;
-    padding: 5px 10px;
-    border-radius: 6px;
-    font-weight: 900;
-    font-size: 13px;
-}
-.badge-over {
-    background-color: #00e676;
-    color: #042410;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-weight: bold;
-}
-.badge-under {
-    background-color: #ff1744;
-    color: #ffffff;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-weight: bold;
-}
-.badge-neutral {
-    background-color: #30363d;
-    color: #8b949e;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-weight: bold;
-}
-.stat-box {
-    background-color: #172030;
-    border: 1px solid #293850;
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-}
-.score-box {
-    background-color: #101722;
-    border: 1px solid #293850;
-    border-radius: 8px;
-    padding: 8px;
-    margin-bottom: 6px;
-}
-.edge-positive {
-    color: #00e676;
-    font-weight: 900;
-}
-.edge-negative {
-    color: #ff1744;
-    font-weight: 900;
-}
-.small-note {
-    color: #8b949e;
-    font-size: 12px;
-}
+    .stApp {
+        background-color: #0d1117;
+        color: #e6edf3;
+    }
+    .header-card {
+        background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .match-card-header {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .league-title {
+        color: #58a6ff;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .time-badge {
+        background-color: #21262d;
+        color: #00e676;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .team-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 4px 0;
+    }
+    .stat-box {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+    }
+    .score-box {
+        background-color: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 6px;
+    }
+    .badge-over {
+        background-color: #00e676;
+        color: #042410;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+    }
+    .badge-under {
+        background-color: #ff1744;
+        color: #ffffff;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+    }
+    .badge-neutral {
+        background-color: #30363d;
+        color: #8b949e;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+    }
+    .badge-win {
+        background-color: #00e676;
+        color: #042410;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 900;
+        font-size: 13px;
+    }
+    .badge-loss {
+        background-color: #ff1744;
+        color: #ffffff;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 900;
+        font-size: 13px;
+    }
+    .small-note {
+        color: #8b949e;
+        font-size: 12px;
+    }
+    .edge-positive {
+        color: #00e676;
+        font-weight: 800;
+    }
+    .edge-negative {
+        color: #ff1744;
+        font-weight: 800;
+    }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ============================================================
-# 3. API KEYS
+# 3. API KEYS & CONNECTION ENGINE
 # ============================================================
-
 raw_keys = st.secrets.get("API_KEY", "")
 API_KEYS = [
     k.strip().replace('"', "").replace("'", "").lower()
@@ -133,10 +144,6 @@ if not API_KEYS:
     st.error("⚠️ API Key မတွေ့ရှိပါ။ Streamlit Secrets ထဲမှာ API_KEY ထည့်ပေးပါ။")
     st.stop()
 
-# ============================================================
-# 4. TIMEZONE
-# ============================================================
-
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
 
 
@@ -146,11 +153,6 @@ def convert_to_mmt(iso_time_str):
         return utc_dt.astimezone(MMT_TIMEZONE).strftime("%I:%M %p")
     except Exception:
         return iso_time_str[11:16]
-
-
-# ============================================================
-# 5. API REQUEST ENGINE
-# ============================================================
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -165,14 +167,13 @@ def fetch_from_api_cached(endpoint):
 
                 if "response" in data:
                     errors = data.get("errors")
-                    if not errors:
+                    if not errors or len(errors) == 0:
                         return (data["response"], f"Key #{idx + 1} Active")
 
-                    error_text = str(errors).lower()
-                    if "ratelimit" in error_text or "rate limit" in error_text:
+                    err_str = str(errors).lower()
+                    if "ratelimit" in err_str or "rate limit" in err_str:
                         time.sleep(6)
                         continue
-
                     return ([], f"Key #{idx + 1}: {errors}")
 
                 return ([], f"Key #{idx + 1}: No Response Body")
@@ -184,9 +185,8 @@ def fetch_from_api_cached(endpoint):
 
 
 # ============================================================
-# 6. LEAGUE WHITELIST
+# 4. LEAGUE WHITELIST & BLACKLIST
 # ============================================================
-
 ALLOWED_CONFIG = {
     "england": ["premier league", "championship"],
     "spain": ["la liga", "segunda division", "laliga 2"],
@@ -265,9 +265,7 @@ BLACKLIST_WORDS = [
 
 
 def is_allowed_league(league_name, country_name, home_name, away_name):
-    combined = (
-        f"{league_name} {country_name} {home_name} {away_name}".lower()
-    )
+    combined = f"{league_name} {country_name} {home_name} {away_name}".lower()
 
     if any(word in combined for word in BLACKLIST_WORDS):
         return False
@@ -277,47 +275,44 @@ def is_allowed_league(league_name, country_name, home_name, away_name):
     ):
         return False
 
-    league_low = league_name.lower()
-    country_low = country_name.lower() if country_name else ""
+    l_low = league_name.lower()
+    c_low = country_name.lower() if country_name else ""
 
-    if "major league soccer" in league_low or league_low == "mls":
+    if "major league soccer" in l_low or l_low == "mls":
         return True
 
     for country, leagues in ALLOWED_CONFIG.items():
-        if country in country_low or country in league_low:
-            if any(league in league_low for league in leagues):
+        if country in c_low or country in l_low:
+            if any(league in l_low for league in leagues):
                 return True
 
     for league in ALLOWED_CONFIG["world"]:
-        if league in league_low:
+        if league in l_low:
             return True
 
     return False
 
 
 # ============================================================
-# 7. GET EXACT LAST 5 HOME / AWAY MATCHES
+# 5. EXACT L5 HOME / AWAY STATS ENGINE
 # ============================================================
-
-
 @st.cache_data(ttl=86400, show_spinner=False)
 def get_team_last_home_away_fixtures(team_id, venue):
     fixtures, status = fetch_from_api_cached(
         f"fixtures?team={team_id}&last=50&status=FT"
     )
-
     if not fixtures:
         return None, status
 
     selected = []
-    for fixture in fixtures:
-        home_id = fixture["teams"]["home"]["id"]
-        away_id = fixture["teams"]["away"]["id"]
+    for f in fixtures:
+        h_id = f["teams"]["home"]["id"]
+        a_id = f["teams"]["away"]["id"]
 
-        if venue == "HOME" and home_id == team_id:
-            selected.append(fixture)
-        elif venue == "AWAY" and away_id == team_id:
-            selected.append(fixture)
+        if venue == "HOME" and h_id == team_id:
+            selected.append(f)
+        elif venue == "AWAY" and a_id == team_id:
+            selected.append(f)
 
         if len(selected) == 5:
             break
@@ -326,11 +321,6 @@ def get_team_last_home_away_fixtures(team_id, venue):
         return None, f"Only {len(selected)} {venue} matches found"
 
     return selected, status
-
-
-# ============================================================
-# 8. CALCULATE EXACT L5 METRICS
-# ============================================================
 
 
 def calculate_l5_metrics(fixtures, team_id, venue):
@@ -344,126 +334,61 @@ def calculate_l5_metrics(fixtures, team_id, venue):
     ga_total = 0
     scorelines = []
 
-    for fixture in fixtures:
-        home_team = fixture["teams"]["home"]
-        away_team = fixture["teams"]["away"]
-        home_goals = fixture["goals"]["home"]
-        away_goals = fixture["goals"]["away"]
+    for f in fixtures:
+        h_name = f["teams"]["home"]["name"]
+        a_name = f["teams"]["away"]["name"]
+        gh = f["goals"]["home"]
+        ga = f["goals"]["away"]
 
-        if home_goals is None or away_goals is None:
+        if gh is None or ga is None:
             return None
 
-        total_goals = home_goals + away_goals
-
-        if total_goals >= 3:
+        tot = gh + ga
+        if tot >= 3:
             over_count += 1
         else:
             under_count += 1
 
-        if home_goals > 0 and away_goals > 0:
+        if gh > 0 and ga > 0:
             btts_count += 1
 
         if venue == "HOME":
-            gf = home_goals
-            ga = away_goals
+            gf = gh
+            ga_val = ga
         else:
-            gf = away_goals
-            ga = home_goals
+            gf = ga
+            ga_val = gh
 
         gf_total += gf
-        ga_total += ga
+        ga_total += ga_val
 
         scorelines.append({
-            "date": fixture["fixture"]["date"],
-            "home": home_team["name"],
-            "away": away_team["name"],
-            "home_goals": home_goals,
-            "away_goals": away_goals,
-            "total_goals": total_goals,
+            "date": f["fixture"]["date"],
+            "home": h_name,
+            "away": a_name,
+            "gh": gh,
+            "ga": ga,
+            "total": tot,
         })
 
-    total_matches = 5
-    over_pct = (over_count / total_matches) * 100
-    under_pct = (under_count / total_matches) * 100
-    btts_pct = (btts_count / total_matches) * 100
-    gf_avg = gf_total / total_matches
-    ga_avg = ga_total / total_matches
-
     return {
-        "over_pct": round(over_pct),
-        "under_pct": round(under_pct),
-        "btts_pct": round(btts_pct),
-        "gf_avg": round(gf_avg, 2),
-        "ga_avg": round(ga_avg, 2),
-        "sample": 5,
-        "scorelines": scorelines,
+        "over_pct": int((over_count / 5.0) * 100),
+        "under_pct": int((under_count / 5.0) * 100),
+        "btts_pct": int((btts_count / 5.0) * 100),
+        "gf_avg": round(gf_total / 5.0, 2),
+        "ga_avg": round(ga_total / 5.0, 2),
         "over_count": over_count,
         "under_count": under_count,
         "btts_count": btts_count,
+        "scorelines": scorelines,
     }
 
 
-# ============================================================
-# 9. MODEL PROBABILITY
-# ============================================================
-
-
-def calculate_over_model_probability(home_stats, away_stats):
-    over_component = (home_stats["over_pct"] + away_stats["over_pct"]) / 2
-    btts_component = (home_stats["btts_pct"] + away_stats["btts_pct"]) / 2
-
-    attack_score = (home_stats["gf_avg"] + away_stats["gf_avg"]) / 2
-    attack_component = min(100, (attack_score / 2.0) * 100)
-
-    defensive_concession = (home_stats["ga_avg"] + away_stats["ga_avg"]) / 2
-    defense_component = min(100, (defensive_concession / 1.6) * 100)
-
-    probability = (
-        over_component * 0.40
-        + btts_component * 0.20
-        + attack_component * 0.20
-        + defense_component * 0.20
-    )
-    return round(max(1, min(99, probability)), 1)
-
-
-def calculate_under_model_probability(home_stats, away_stats):
-    under_component = (home_stats["under_pct"] + away_stats["under_pct"]) / 2
-    no_btts_component = (
-        (100 - home_stats["btts_pct"]) + (100 - away_stats["btts_pct"])
-    ) / 2
-
-    low_attack_score = (home_stats["gf_avg"] + away_stats["gf_avg"]) / 2
-    attack_component = max(0, min(100, 100 - (low_attack_score / 1.8 * 100)))
-
-    low_concession = (home_stats["ga_avg"] + away_stats["ga_avg"]) / 2
-    defense_component = max(0, min(100, 100 - (low_concession / 1.5 * 100)))
-
-    probability = (
-        under_component * 0.40
-        + no_btts_component * 0.20
-        + attack_component * 0.20
-        + defense_component * 0.20
-    )
-    return round(max(1, min(99, probability)), 1)
-
-
-# ============================================================
-# 10. EVALUATE FIXTURE
-# ============================================================
-
-
 def evaluate_fixture(home_id, away_id):
-    home_matches, home_status = get_team_last_home_away_fixtures(
-        home_id, "HOME"
-    )
-    away_matches, away_status = get_team_last_home_away_fixtures(
-        away_id, "AWAY"
-    )
+    home_matches, _ = get_team_last_home_away_fixtures(home_id, "HOME")
+    away_matches, _ = get_team_last_home_away_fixtures(away_id, "AWAY")
 
     if not home_matches or not away_matches:
-        return None
-    if len(home_matches) != 5 or len(away_matches) != 5:
         return None
 
     home_stats = calculate_l5_metrics(home_matches, home_id, "HOME")
@@ -472,6 +397,7 @@ def evaluate_fixture(home_id, away_id):
     if not home_stats or not away_stats:
         return None
 
+    # Over Criteria
     over_criteria = {
         "home_over_60": home_stats["over_pct"] >= 60,
         "away_over_60": away_stats["over_pct"] >= 60,
@@ -484,6 +410,7 @@ def evaluate_fixture(home_id, away_id):
     }
     over_base_pass = all(over_criteria.values())
 
+    # Under Criteria
     under_criteria = {
         "home_under_60": home_stats["under_pct"] >= 60,
         "away_under_60": away_stats["under_pct"] >= 60,
@@ -496,13 +423,55 @@ def evaluate_fixture(home_id, away_id):
     }
     under_base_pass = all(under_criteria.values())
 
-    over_probability = calculate_over_model_probability(home_stats, away_stats)
-    under_probability = calculate_under_model_probability(
-        home_stats, away_stats
+    # Model Probability
+    over_comp = (home_stats["over_pct"] + away_stats["over_pct"]) / 2
+    btts_comp = (home_stats["btts_pct"] + away_stats["btts_pct"]) / 2
+    atk_comp = min(
+        100, ((home_stats["gf_avg"] + away_stats["gf_avg"]) / 4.0) * 100
+    )
+    def_comp = min(
+        100, ((home_stats["ga_avg"] + away_stats["ga_avg"]) / 3.2) * 100
+    )
+    over_prob = round(
+        (
+            over_comp * 0.40
+            + btts_comp * 0.20
+            + atk_comp * 0.20
+            + def_comp * 0.20
+        ),
+        1,
     )
 
-    over_edge = round(over_probability - 60, 1)
-    under_edge = round(under_probability - 60, 1)
+    under_comp = (home_stats["under_pct"] + away_stats["under_pct"]) / 2
+    no_btts_comp = (
+        (100 - home_stats["btts_pct"]) + (100 - away_stats["btts_pct"])
+    ) / 2
+    low_atk = max(
+        0,
+        min(
+            100,
+            100 - (((home_stats["gf_avg"] + away_stats["gf_avg"]) / 3.6) * 100),
+        ),
+    )
+    low_def = max(
+        0,
+        min(
+            100,
+            100 - (((home_stats["ga_avg"] + away_stats["ga_avg"]) / 3.0) * 100),
+        ),
+    )
+    under_prob = round(
+        (
+            under_comp * 0.40
+            + no_btts_comp * 0.20
+            + low_atk * 0.20
+            + low_def * 0.20
+        ),
+        1,
+    )
+
+    over_edge = round(over_prob - 60, 1)
+    under_edge = round(under_prob - 60, 1)
 
     signal = "NEUTRAL"
     probability = 0
@@ -512,40 +481,36 @@ def evaluate_fixture(home_id, away_id):
 
     if over_base_pass:
         signal = "OVER_2_5"
-        probability = over_probability
+        probability = over_prob
         model_edge = over_edge
         stars = 5
         boosts.append("✅ Exact L5 Home O2.5 ≥ 60%")
         boosts.append("✅ Exact L5 Away O2.5 ≥ 60%")
-        boosts.append("✅ Home L5 BTTS ≥ 60%")
-        boosts.append("✅ Away L5 BTTS ≥ 60%")
+        boosts.append("✅ Home & Away L5 BTTS ≥ 60%")
         boosts.append("✅ Home GF > 1.5 & GA > 1.0")
         boosts.append("✅ Away GF > 1.0 & GA > 1.0")
     elif under_base_pass:
         signal = "UNDER_2_5"
-        probability = under_probability
+        probability = under_prob
         model_edge = under_edge
         stars = 5
         boosts.append("✅ Exact L5 Home U2.5 ≥ 60%")
         boosts.append("✅ Exact L5 Away U2.5 ≥ 60%")
-        boosts.append("✅ Home L5 BTTS ≤ 50%")
-        boosts.append("✅ Away L5 BTTS ≤ 50%")
+        boosts.append("✅ Home & Away L5 BTTS ≤ 50%")
         boosts.append("✅ Home GF < 1.3 & GA < 1.0")
         boosts.append("✅ Away GF < 1.1 & GA < 1.2")
     else:
         signal = "NEUTRAL"
         stars = 0
-        if over_probability >= under_probability:
-            probability = over_probability
-            model_edge = over_edge
-        else:
-            probability = under_probability
-            model_edge = under_edge
+        probability = max(over_prob, under_prob)
+        model_edge = (
+            over_edge if over_prob >= under_prob else under_edge
+        )
 
     if stars == 5 and model_edge < 5:
         stars = 0
         signal = "NEUTRAL"
-        boosts.append("⚠️ Base criteria passed, but Model Edge < 5%")
+        boosts.append("⚠️ Base criteria met, but Model Edge < 5%")
 
     return {
         "signal": signal,
@@ -562,43 +527,23 @@ def evaluate_fixture(home_id, away_id):
     }
 
 
-# ============================================================
-# 11. SCORELINE DISPLAY
-# ============================================================
-
-
-def display_scorelines(fixtures, venue, team_id):
-    if not fixtures:
-        st.warning("L5 data မတွေ့ရှိပါ။")
-        return
-
-    for index, fixture in enumerate(fixtures, start=1):
-        home = fixture["teams"]["home"]["name"]
-        away = fixture["teams"]["away"]["name"]
-        gh = fixture["goals"]["home"]
-        ga = fixture["goals"]["away"]
-        date_raw = fixture["fixture"]["date"]
-
-        try:
-            date_obj = datetime.fromisoformat(date_raw.replace("Z", "+00:00"))
-            date_display = date_obj.astimezone(MMT_TIMEZONE).strftime(
-                "%Y-%m-%d"
-            )
-        except Exception:
-            date_display = date_raw[:10]
-
-        total = gh + ga
-        line = "OVER 2.5" if total >= 3 else "UNDER 2.5"
+def display_scorelines_ui(fixtures, venue):
+    for idx, f in enumerate(fixtures, start=1):
+        h = f["teams"]["home"]["name"]
+        a = f["teams"]["away"]["name"]
+        gh = f["goals"]["home"]
+        ga = f["goals"]["away"]
+        d_str = f["fixture"]["date"][:10]
+        tot = gh + ga
+        line = "OVER 2.5" if tot >= 3 else "UNDER 2.5"
         btts = "BTTS YES" if gh > 0 and ga > 0 else "BTTS NO"
 
         st.markdown(
             f"""
             <div class="score-box">
-            <b>L{index}</b> &nbsp; {date_display}<br>
-            ⚽ <b>{home} {gh} - {ga} {away}</b><br>
-            <span class="small-note">
-            Total Goals: {total} &nbsp; | &nbsp; {line} &nbsp; | &nbsp; {btts}
-            </span>
+                <span class="small-note"><b>L{idx}</b> • {d_str}</span><br>
+                <b>{h} {gh} - {ga} {a}</b><br>
+                <span class="small-note">Total: <b>{tot}</b> | {line} | {btts}</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -606,17 +551,14 @@ def display_scorelines(fixtures, venue, team_id):
 
 
 # ============================================================
-# 12. MAIN UI (ONE MATCH AT A TIME)
+# 6. MAIN UI (MATCH FEED & ON-DEMAND EVALUATION)
 # ============================================================
-
 st.markdown(
     """
-    ## ⚽ Pre-Match <span style="color:#00f2fe;">Over/Under Intelligence Pro</span>
+    ## ⚽ MATCHES FEED
+    <span style="color:#58a6ff; font-size:14px; font-weight:600;">Pre-Match Over/Under Intelligence Pro</span>
     """,
     unsafe_allow_html=True,
-)
-st.caption(
-    "🛡️ Single Match Mode (Anti-Ban & Safe API Protection) • 1-Click Evaluation"
 )
 
 current_mmt_date = datetime.now(MMT_TIMEZONE).date()
@@ -624,10 +566,11 @@ current_mmt_date = datetime.now(MMT_TIMEZONE).date()
 if "target_date" not in st.session_state:
     st.session_state.target_date = current_mmt_date
 
+# Date Controls
 c_d1, c_d2, c_d3, c_d4 = st.columns([2, 1, 1, 2])
 with c_d1:
     st.session_state.target_date = st.date_input(
-        "📅 စစ်ဆေးလိုသည့် ရက်စွဲ", value=st.session_state.target_date
+        "📅 ရွေးချယ်ထားသော ရက်စွဲ", value=st.session_state.target_date
     )
 with c_d2:
     if st.button("⬅️ Yesterday"):
@@ -638,25 +581,32 @@ with c_d3:
         st.session_state.target_date = current_mmt_date + timedelta(days=1)
         st.rerun()
 with c_d4:
-    show_upcoming_only = st.checkbox(
-        "⏳ Upcoming Matches Only", value=False
-    )
+    show_upcoming_only = st.checkbox("⏳ Upcoming Only", value=False)
 
 date_str = st.session_state.target_date.strftime("%Y-%m-%d")
 
-st.divider()
+st.markdown(
+    f"""
+    <div class="header-card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <span class="small-note">DATE SELECTED (MMT)</span>
+            <h4 style="margin:0; color:#00e676;">📅 {date_str}</h4>
+        </div>
+        <span class="time-badge">MMT (UTC+6:30)</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-# Fetch Fixtures List for the Selected Date (1 Single API Call)
-with st.spinner(f"Fetching fixtures list for {date_str}..."):
+# 1 Single API Call to get Today's Fixtures List
+with st.spinner("Fetching today's fixtures list..."):
     raw_matches, conn_status = fetch_from_api_cached(
         f"fixtures?date={date_str}&timezone=Asia/Yangon"
     )
 
 if not raw_matches:
     st.error(f"⚠️ API Info: `{conn_status}`")
-    st.info(
-        "API Rate Limit သို့မဟုတ် Connection Status ကို စစ်ဆေးပေးပါခင်ဗျာ။"
-    )
+    st.info("API Rate Limit သို့မဟုတ် Connection ကို စစ်ဆေးပေးပါခင်ဗျာ။")
     st.stop()
 
 filtered_fixtures = [
@@ -678,222 +628,210 @@ if show_upcoming_only:
     ]
 
 if not filtered_fixtures:
-    st.warning(
-        f"`{date_str}` တွင် Whitelist စံနှုန်းဝင် ပွဲစဉ်များ မတွေ့ရှိပါခင်ဗျာ။"
-    )
+    st.warning(f"`{date_str}` တွင် Whitelist စံနှုန်းဝင် ပွဲစဉ်များ မရှိပါ။")
     st.stop()
 
-st.success(
-    f"✅ `{date_str}` တွင် Whitelist ပွဲစဉ်ပေါင်း **`{len(filtered_fixtures)}`** ပွဲ စစ်ဆေးရန် အသင့်ရှိပါသည်။"
+st.caption(
+    f"📋 စုစုပေါင်း Whitelist ပွဲစဉ် **{len(filtered_fixtures)}** ပွဲ တွေ့ရှိပါသည်။ အောက်ပါ ပွဲစဉ်များထဲမှ စစ်ဆေးလိုသောပွဲကို နှိပ်၍ **'⚡ Analyze Match'** ပြုလုပ်နိုင်ပါသည် -"
 )
 
-# Build Dropdown options
-match_options = {
-    f"🏆 {f['league']['name']} ➔ {f['teams']['home']['name']} vs {f['teams']['away']['name']} ({convert_to_mmt(f['fixture']['date'])} MMT)": f
-    for f in filtered_fixtures
-}
+# Render Match Feed List
+for idx, fix in enumerate(filtered_fixtures):
+    f_id = fix["fixture"]["id"]
+    h_id = fix["teams"]["home"]["id"]
+    a_id = fix["teams"]["away"]["id"]
+    h_name = fix["teams"]["home"]["name"]
+    a_name = fix["teams"]["away"]["name"]
+    l_name = fix["league"]["name"]
+    c_name = fix["league"].get("country", "")
+    match_time = convert_to_mmt(fix["fixture"]["date"])
+    status_short = fix["fixture"]["status"]["short"]
 
-col_sel, col_btn = st.columns([3, 1])
-with col_sel:
-    selected_label = st.selectbox(
-        "🎯 စစ်ဆေးလိုသည့် ပွဲစဉ်ကို ရွေးချယ်ပါ (Select Match to Evaluate):",
-        options=list(match_options.keys()),
-    )
-with col_btn:
-    st.write("")
-    st.write("")
-    evaluate_clicked = st.button("🔍 Evaluate Match", type="primary")
-
-# Execute Evaluation ONLY for the Selected Match (Consumes only 2 cached API calls)
-if evaluate_clicked:
-    selected_fixture = match_options[selected_label]
-    f_id = selected_fixture["fixture"]["id"]
-    h_id = selected_fixture["teams"]["home"]["id"]
-    a_id = selected_fixture["teams"]["away"]["id"]
-    h_name = selected_fixture["teams"]["home"]["name"]
-    a_name = selected_fixture["teams"]["away"]["name"]
-    l_name = selected_fixture["league"]["name"]
-    c_name = selected_fixture["league"].get("country", "")
-    match_time = convert_to_mmt(selected_fixture["fixture"]["date"])
-    status_short = selected_fixture["fixture"]["status"]["short"]
-    score_home = selected_fixture["goals"]["home"]
-    score_away = selected_fixture["goals"]["away"]
-
+    score_h = fix["goals"]["home"]
+    score_a = fix["goals"]["away"]
     is_finished = status_short in [
         "FT",
         "AET",
         "PEN",
-    ] and (score_home is not None and score_away is not None)
+    ] and (score_h is not None and score_a is not None)
 
-    with st.spinner(
-        f"Evaluating Exact L5 Scorelines for {h_name} vs {a_name}..."
-    ):
-        analysis = evaluate_fixture(h_id, a_id)
+    # Clean Expander UI for each match
+    status_label = (
+        f"FT: {score_h}-{score_a}"
+        if is_finished
+        else f"{status_short}"
+    )
+    expander_title = (
+        f"🏆 {l_name} ({c_name})  |  ⏰ {match_time}  |  ⚽ {h_name} vs {a_name}  [{status_label}]"
+    )
 
-    if not analysis:
-        st.warning(
-            "⚠️ ဤအသင်းများအတွက် လုံလောက်သော L5 Home/Away သမိုင်းဝင်ပွဲစဉ် အချက်အလက် (၅ ပွဲပြည့်) မတွေ့ရှိပါဗျာ။"
-        )
-    else:
-        home_stats = analysis["h_stats"]
-        away_stats = analysis["a_stats"]
-        is_over = analysis["signal"] == "OVER_2_5"
-        is_under = analysis["signal"] == "UNDER_2_5"
-
-        # Match Header Box
-        st.markdown(
-            f"""
-            <div class="match-box">
-                <span class="league-badge">🏆 {l_name} • {c_name}</span>
-                <h3>⚽ {h_name} vs {a_name}</h3>
-                <span class="small-note">⏰ Time: {match_time} (MMT) | Status: <b>{status_short}</b></span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        c1, c2, c3 = st.columns([3, 2, 2])
-        with c1:
-            if is_over:
-                st.markdown(
-                    "<div class='badge-over' style='text-align:center;'>⭐⭐⭐⭐⭐ OVER 2.5 TARGET</div>",
-                    unsafe_allow_html=True,
-                )
-            elif is_under:
-                st.markdown(
-                    "<div class='badge-under' style='text-align:center;'>⭐⭐⭐⭐⭐ UNDER 2.5 TARGET</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    "<div class='badge-neutral' style='text-align:center;'>⚪ NEUTRAL (NO 5-STAR SIGNAL)</div>",
-                    unsafe_allow_html=True,
-                )
-
-        with c2:
+    with st.expander(expander_title, expanded=False):
+        c_m1, c_m2 = st.columns([3, 1])
+        with c_m1:
             st.markdown(
-                f"<b>Model Probability:</b> <span style='color:#ffd600; font-size:20px; font-weight:900;'>{analysis['probability']}%</span>",
+                f"""
+                <span class="league-title">🏆 {l_name} • {c_name}</span>
+                <div class="team-title">⚽ {h_name} <span style="color:#58a6ff;">vs</span> {a_name}</div>
+                <span class="small-note">⏰ Kick Off: <b>{match_time} (MMT)</b> | Status: <b>{status_short}</b></span>
+                """,
                 unsafe_allow_html=True,
             )
-            edge = analysis["model_edge"]
-            edge_class = "edge-positive" if edge >= 0 else "edge-negative"
-            st.markdown(
-                f"<b>Model Edge:</b> <span class='{edge_class}'>{edge:+.1f}%</span> (vs 60% threshold)",
-                unsafe_allow_html=True,
+        with c_m2:
+            analyze_btn = st.button(
+                "⚡ Analyze Match",
+                key=f"btn_eval_{f_id}",
+                type="primary",
+                use_container_width=True,
             )
 
-        with c3:
-            if is_finished:
-                total_goals = score_home + score_away
-                if (is_over and total_goals >= 3) or (
-                    is_under and total_goals <= 2
-                ):
+        # On-Demand Execution for This Match
+        eval_key = f"eval_result_{f_id}"
+        if analyze_btn:
+            with st.spinner(f"Analyzing exact L5 scorelines for {h_name} vs {a_name}..."):
+                st.session_state[eval_key] = evaluate_fixture(h_id, a_id)
+
+        if eval_key in st.session_state and st.session_state[eval_key]:
+            res = st.session_state[eval_key]
+            hs = res["h_stats"]
+            as_ = res["a_stats"]
+            is_over = res["signal"] == "OVER_2_5"
+            is_under = res["signal"] == "UNDER_2_5"
+
+            st.divider()
+
+            # Signal & Metrics Row
+            sc1, sc2, sc3 = st.columns([3, 2, 2])
+            with sc1:
+                if is_over:
                     st.markdown(
-                        f"<div class='badge-win'>✅ WON — Score {score_home}-{score_away}</div>",
+                        "<div class='badge-over' style='text-align:center;'>⭐⭐⭐⭐⭐ OVER 2.5 TARGET</div>",
                         unsafe_allow_html=True,
                     )
-                elif analysis["stars"] == 5:
+                elif is_under:
                     st.markdown(
-                        f"<div class='badge-loss'>❌ LOST — Score {score_home}-{score_away}</div>",
+                        "<div class='badge-under' style='text-align:center;'>⭐⭐⭐⭐⭐ UNDER 2.5 TARGET</div>",
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
-                        f"<div class='badge-neutral'>FT Score: {score_home}-{score_away}</div>",
+                        "<div class='badge-neutral' style='text-align:center;'>⚪ NEUTRAL (NO 5-STAR SIGNAL)</div>",
                         unsafe_allow_html=True,
                     )
-            else:
-                st.info("⏳ Match Upcoming (စောင့်ကြည့်ရန်)")
-
-        # L5 Stats Display
-        st.write("")
-        with st.expander(
-            f"📈 View Exact L5 Match Scorelines ({h_name} vs {a_name})",
-            expanded=True,
-        ):
-            st.markdown("#### 🏠 Home Team — Last 5 HOME Matches")
-            b1, b2, b3, b4 = st.columns(4)
-            with b1:
+            with sc2:
                 st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>HOME L5 OVER 2.5</span><br><b style='color:#00f2fe; font-size:18px;'>{home_stats['over_pct']}%</b><br><span class='small-note'>{home_stats['over_count']}/5</span></div>",
+                    f"<b>Model Probability:</b> <span style='color:#ffd600; font-size:18px; font-weight:800;'>{res['probability']}%</span>",
                     unsafe_allow_html=True,
                 )
-            with b2:
+                e_val = res["model_edge"]
+                e_cls = "edge-positive" if e_val >= 0 else "edge-negative"
                 st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>HOME L5 BTTS</span><br><b style='color:#00e676; font-size:18px;'>{home_stats['btts_pct']}%</b><br><span class='small-note'>{home_stats['btts_count']}/5</span></div>",
+                    f"<b>Model Edge:</b> <span class='{e_cls}'>{e_val:+.1f}%</span>",
                     unsafe_allow_html=True,
                 )
-            with b3:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>HOME GF</span><br><b style='font-size:18px;'>{home_stats['gf_avg']}</b></div>",
-                    unsafe_allow_html=True,
-                )
-            with b4:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>HOME GA</span><br><b style='font-size:18px;'>{home_stats['ga_avg']}</b></div>",
-                    unsafe_allow_html=True,
-                )
-
-            display_scorelines(analysis["home_matches"], "HOME", h_id)
-
-            st.divider()
-
-            st.markdown("#### ✈️ Away Team — Last 5 AWAY Matches")
-            b1, b2, b3, b4 = st.columns(4)
-            with b1:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>AWAY L5 OVER 2.5</span><br><b style='color:#00f2fe; font-size:18px;'>{away_stats['over_pct']}%</b><br><span class='small-note'>{away_stats['over_count']}/5</span></div>",
-                    unsafe_allow_html=True,
-                )
-            with b2:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>AWAY L5 BTTS</span><br><b style='color:#00e676; font-size:18px;'>{away_stats['btts_pct']}%</b><br><span class='small-note'>{away_stats['btts_count']}/5</span></div>",
-                    unsafe_allow_html=True,
-                )
-            with b3:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>AWAY GF</span><br><b style='font-size:18px;'>{away_stats['gf_avg']}</b></div>",
-                    unsafe_allow_html=True,
-                )
-            with b4:
-                st.markdown(
-                    f"<div class='stat-box'><span class='small-note'>AWAY GA</span><br><b style='font-size:18px;'>{away_stats['ga_avg']}</b></div>",
-                    unsafe_allow_html=True,
-                )
-
-            display_scorelines(analysis["away_matches"], "AWAY", a_id)
-
-            st.divider()
-            st.markdown("#### 🧠 Strict Criteria Checklist")
-            if is_over:
-                criteria = analysis["over_criteria"]
-            elif is_under:
-                criteria = analysis["under_criteria"]
-            else:
-                criteria = {
-                    **analysis["over_criteria"],
-                    **analysis["under_criteria"],
-                }
-
-            for name, passed in criteria.items():
-                if passed:
-                    st.write(f"✅ {name}")
+            with sc3:
+                if is_finished:
+                    tot_goals = score_h + score_a
+                    if (is_over and tot_goals >= 3) or (
+                        is_under and tot_goals <= 2
+                    ):
+                        st.markdown(
+                            f"<div class='badge-win'>✅ WON (Score: {score_h}-{score_a})</div>",
+                            unsafe_allow_html=True,
+                        )
+                    elif res["stars"] == 5:
+                        st.markdown(
+                            f"<div class='badge-loss'>❌ LOST (Score: {score_h}-{score_a})</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f"<div class='badge-neutral'>FT: {score_h}-{score_a}</div>",
+                            unsafe_allow_html=True,
+                        )
                 else:
-                    st.write(f"❌ {name}")
+                    st.info("⏳ Match Upcoming")
 
-            if analysis["boosts"]:
-                st.markdown("#### ⚡ Active Signals / Notes:")
-                for b in analysis["boosts"]:
+            st.write("")
+
+            # Home / Away Exact L5 Scorelines
+            st.markdown(f"#### 🏠 {h_name} — Last 5 HOME Matches")
+            hb1, hb2, hb3, hb4 = st.columns(4)
+            with hb1:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>HOME L5 OVER</span><br><b style='color:#58a6ff; font-size:17px;'>{hs['over_pct']}%</b><br><span class='small-note'>{hs['over_count']}/5</span></div>",
+                    unsafe_allow_html=True,
+                )
+            with hb2:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>HOME L5 BTTS</span><br><b style='color:#00e676; font-size:17px;'>{hs['btts_pct']}%</b><br><span class='small-note'>{hs['btts_count']}/5</span></div>",
+                    unsafe_allow_html=True,
+                )
+            with hb3:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>HOME GF</span><br><b style='font-size:17px;'>{hs['gf_avg']}</b></div>",
+                    unsafe_allow_html=True,
+                )
+            with hb4:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>HOME GA</span><br><b style='font-size:17px;'>{hs['ga_avg']}</b></div>",
+                    unsafe_allow_html=True,
+                )
+
+            display_scorelines_ui(res["home_matches"], "HOME")
+
+            st.write("")
+            st.markdown(f"#### ✈️ {a_name} — Last 5 AWAY Matches")
+            ab1, ab2, ab3, ab4 = st.columns(4)
+            with ab1:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>AWAY L5 OVER</span><br><b style='color:#58a6ff; font-size:17px;'>{as_['over_pct']}%</b><br><span class='small-note'>{as_['over_count']}/5</span></div>",
+                    unsafe_allow_html=True,
+                )
+            with ab2:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>AWAY L5 BTTS</span><br><b style='color:#00e676; font-size:17px;'>{as_['btts_pct']}%</b><br><span class='small-note'>{as_['btts_count']}/5</span></div>",
+                    unsafe_allow_html=True,
+                )
+            with ab3:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>AWAY GF</span><br><b style='font-size:17px;'>{as_['gf_avg']}</b></div>",
+                    unsafe_allow_html=True,
+                )
+            with ab4:
+                st.markdown(
+                    f"<div class='stat-box'><span class='small-note'>AWAY GA</span><br><b style='font-size:17px;'>{as_['ga_avg']}</b></div>",
+                    unsafe_allow_html=True,
+                )
+
+            display_scorelines_ui(res["away_matches"], "AWAY")
+
+            st.write("")
+            st.markdown("#### 🔎 Strict Criteria Checklist:")
+            chk = (
+                res["over_criteria"]
+                if is_over
+                else res["under_criteria"]
+                if is_under
+                else {**res["over_criteria"], **res["under_criteria"]}
+            )
+            for k, val in chk.items():
+                if val:
+                    st.write(f"✅ `{k}`")
+                else:
+                    st.write(f"❌ `{k}`")
+
+            if res["boosts"]:
+                st.markdown("#### ⚡ Active Signals:")
+                for b in res["boosts"]:
                     st.write(f"• {b}")
 
 # ============================================================
-# 13. FOOTER
+# 7. FOOTER
 # ============================================================
-
 st.divider()
 st.caption(
     """
-    ⚽ Pre-Match Over/Under Intelligence Pro • Single Match Mode
-    Data source: API-Football • L5 methodology: Exact Last 5 Home/Away scorelines
+    ⚽ Pre-Match Over/Under Intelligence Pro • Livescore Feed Engine
+    Data Source: API-Football (Asia/Yangon Timezone)
     """
 )
