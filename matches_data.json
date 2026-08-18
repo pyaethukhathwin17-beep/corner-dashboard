@@ -1,33 +1,162 @@
 {
+  "test_mode": true,
+  "league_filter": "UEFA Champions League ONLY",
   "window_range": "18 Aug 12:00 PM - 19 Aug 12:00 PM MMT",
-  "total_matches": 1,
+  "total_matches": 4,
   "matches": [
     {
-      "fixture_id": 1523198,
-      "league": "Super League",
-      "country": "China",
-      "home": "Shanghai Shenhua",
-      "away": "Beijing Guoan",
-      "date": "2026-08-18",
-      "time": "18:05",
+      "fixture_id": 1622620,
+      "league": "UEFA Champions League",
+      "country": "World",
+      "home": "Dinamo Zagreb",
+      "away": "Viking",
+      "date": "2026-08-19",
+      "time": "01:30",
       "status": "NS",
-      "signal": "NEUTRAL",
-      "prob": 52.5,
-      "edge": -7.5,
+      "signal": "DATA_UNAVAILABLE",
+      "prob": null,
+      "edge": null,
+      "data_status": {
+        "home": "API_DATA_UNAVAILABLE",
+        "away": "API_DATA_UNAVAILABLE"
+      },
       "h_stats": {
-        "over_pct": 50,
-        "under_pct": 50,
-        "btts_pct": 50,
-        "gf_avg": 1.0,
-        "ga_avg": 1.0,
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
         "scorelines": []
       },
       "a_stats": {
-        "over_pct": 50,
-        "under_pct": 50,
-        "btts_pct": 50,
-        "gf_avg": 1.0,
-        "ga_avg": 1.0,
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      }
+    },
+    {
+      "fixture_id": 1622621,
+      "league": "UEFA Champions League",
+      "country": "World",
+      "home": "Fenerbahçe",
+      "away": "Lyon",
+      "date": "2026-08-19",
+      "time": "01:30",
+      "status": "NS",
+      "signal": "DATA_UNAVAILABLE",
+      "prob": null,
+      "edge": null,
+      "data_status": {
+        "home": "API_DATA_UNAVAILABLE",
+        "away": "API_DATA_UNAVAILABLE"
+      },
+      "h_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      },
+      "a_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      }
+    },
+    {
+      "fixture_id": 1622622,
+      "league": "UEFA Champions League",
+      "country": "World",
+      "home": "Levski Sofia",
+      "away": "AEK Athens FC",
+      "date": "2026-08-19",
+      "time": "01:30",
+      "status": "NS",
+      "signal": "DATA_UNAVAILABLE",
+      "prob": null,
+      "edge": null,
+      "data_status": {
+        "home": "API_DATA_UNAVAILABLE",
+        "away": "API_DATA_UNAVAILABLE"
+      },
+      "h_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      },
+      "a_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      }
+    },
+    {
+      "fixture_id": 1628458,
+      "league": "OFC Champions League",
+      "country": "World",
+      "home": "Auckland City",
+      "away": "Rewa",
+      "date": "2026-08-19",
+      "time": "09:30",
+      "status": "NS",
+      "signal": "DATA_UNAVAILABLE",
+      "prob": null,
+      "edge": null,
+      "data_status": {
+        "home": "API_DATA_UNAVAILABLE",
+        "away": "API_DATA_UNAVAILABLE"
+      },
+      "h_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
+        "scorelines": []
+      },
+      "a_stats": {
+        "available": false,
+        "reason": "API_DATA_UNAVAILABLE",
+        "matches_found": 0,
+        "over_pct": null,
+        "under_pct": null,
+        "btts_pct": null,
+        "gf_avg": null,
+        "ga_avg": null,
         "scorelines": []
       }
     }
