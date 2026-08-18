@@ -1,8 +1,15 @@
 {
-  "test_mode": true,
-  "league_filter": "UEFA Champions League ONLY",
+  "updated_at": "2026-08-18 08:14 PM MMT",
+  "window_start": "2026-08-18T12:00:00+06:30",
+  "window_end": "2026-08-19T12:00:00+06:30",
   "window_range": "18 Aug 12:00 PM - 19 Aug 12:00 PM MMT",
-  "total_matches": 4,
+  "mode": "CHAMPIONS_LEAGUE_TEST",
+  "league_filter": "UEFA Champions League ONLY",
+  "history_method": "fixtures?team=ID&from=DATE&to=DATE",
+  "last_parameter_used": false,
+  "history_days": 120,
+  "max_games": 5,
+  "total_matches": 3,
   "matches": [
     {
       "fixture_id": 1622620,
@@ -16,14 +23,12 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
-      "data_status": {
-        "home": "API_DATA_UNAVAILABLE",
-        "away": "API_DATA_UNAVAILABLE"
-      },
       "h_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
@@ -33,8 +38,10 @@
       },
       "a_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
@@ -55,14 +62,12 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
-      "data_status": {
-        "home": "API_DATA_UNAVAILABLE",
-        "away": "API_DATA_UNAVAILABLE"
-      },
       "h_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
@@ -72,8 +77,10 @@
       },
       "a_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
@@ -94,14 +101,12 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
-      "data_status": {
-        "home": "API_DATA_UNAVAILABLE",
-        "away": "API_DATA_UNAVAILABLE"
-      },
       "h_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
@@ -111,47 +116,10 @@
       },
       "a_stats": {
         "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": []
-      }
-    },
-    {
-      "fixture_id": 1628458,
-      "league": "OFC Champions League",
-      "country": "World",
-      "home": "Auckland City",
-      "away": "Rewa",
-      "date": "2026-08-19",
-      "time": "09:30",
-      "status": "NS",
-      "signal": "DATA_UNAVAILABLE",
-      "prob": null,
-      "edge": null,
-      "data_status": {
-        "home": "API_DATA_UNAVAILABLE",
-        "away": "API_DATA_UNAVAILABLE"
-      },
-      "h_stats": {
-        "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": []
-      },
-      "a_stats": {
-        "available": false,
-        "reason": "API_DATA_UNAVAILABLE",
-        "matches_found": 0,
+        "reason": "API_ERROR",
+        "errors": {
+          "season": "The Season field is required."
+        },
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
