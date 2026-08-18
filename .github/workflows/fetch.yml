@@ -2,33 +2,60 @@ name: Daily Fixtures Pre-Fetch
 
 on:
   schedule:
-    - cron: '0 1 * * *' # Runs daily at 7:30 AM MMT
+    - cron: '0 1 * * *' # 7:30 AM MMT
   workflow_dispatch:
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
+
     steps:
+
+      # =====================================================
+      # 1. CHECKOUT
+      # =====================================================
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # =====================================================
+      # 2. SETUP PYTHON
+      # =====================================================
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # =====================================================
+      # 3. INSTALL DEPENDENCIES
+      # =====================================================
       - name: Install Dependencies
-        run: pip install requests
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
 
+      # =====================================================
+      # 4. RUN FETCHER
+      # =====================================================
       - name: Run Fetcher Script
-        run: python fetch_data.py
+        env:
+          API_KEYS_POOL: ${{ secrets.API_KEYS_POOL }}
+        run: |
+          python fetch_data.py
 
+      # =====================================================
+      # 5. COMMIT JSON
+      # =====================================================
       - name: Commit and Push Updated JSON
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
+
           git add matches_data.json
-          git commit -m "Auto-update matches_data.json [skip ci]" || echo "No changes to commit"
+
+          git commit -m "Auto-update matches_data.json [skip ci]" \
+            || echo "No changes to commit"
+
           git push
