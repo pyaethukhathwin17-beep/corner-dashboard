@@ -7,43 +7,76 @@ import requests
 
 
 # ============================================================
-# 1. API KEY CONFIGURATION
+# 1. CONFIGURATION
 # ============================================================
 
-raw_keys = os.environ.get("API_KEYS_POOL", "")
+API_BASE_URL = "https://v3.football.api-sports.io"
 
-if raw_keys:
-    API_KEYS = [
-        k.strip()
-        for k in raw_keys.split(",")
-        if k.strip() and len(k.strip()) == 32
-    ]
-else:
-    # TEST ONLY
-    API_KEYS = ["1ead03cecd516cf48c41b93c7b15116d"]
+# ------------------------------------------------------------
+# TEST MODE
+# ------------------------------------------------------------
+
+MAX_GAMES = 5
+
+# API request တစ်ခါနဲ့တစ်ခါကြား delay
+API_DELAY_SECONDS = 7
+
+# L5 အတွက် လွန်ခဲ့တဲ့ ရက်ဘယ်လောက်အထိရှာမလဲ
+# 120 days ဆိုရင် Champions League qualifier / recent matches
+# တွေကို ရှာဖို့ အများအားဖြင့် လုံလောက်ပါတယ်။
+HISTORY_DAYS = 120
+
+# Free plan quota ကာကွယ်ရန်
+MAX_HISTORY_REQUESTS = 10
+
+
+# ============================================================
+# 2. API KEY - ENVIRONMENT VARIABLE ONLY
+# ============================================================
+
+raw_keys = os.environ.get(
+    "API_KEYS_POOL",
+    ""
+)
+
+API_KEYS = [
+    key.strip()
+    for key in raw_keys.split(",")
+    if key.strip()
+]
 
 if not API_KEYS:
-    raise RuntimeError("❌ No valid API key found.")
+    raise RuntimeError(
+        "❌ API_KEYS_POOL is not configured.\n"
+        "GitHub Actions Secrets ထဲမှာ API_KEYS_POOL ထည့်ပါ။"
+    )
 
-current_key_index = 0
 
-print("=" * 70)
-print("🔑 API CONFIGURATION")
-print("=" * 70)
-print(f"Total API Keys Loaded : {len(API_KEYS)}")
-print(f"Active API Key        : {API_KEYS[0][:8]}***")
-print("=" * 70)
+# လက်ရှိ test မှာ key တစ်ခုတည်းပဲ သုံးမယ်။
+# Rate limit ကို bypass လုပ်ရန် key rotation မလုပ်ပါ။
+API_KEY = API_KEYS[0]
 
 
 # ============================================================
-# 2. MYANMAR TIMEZONE
+# 3. MYANMAR TIMEZONE
 # ============================================================
 
-MMT_TZ = timezone(timedelta(hours=6, minutes=30))
+MMT_TZ = timezone(
+    timedelta(
+        hours=6,
+        minutes=30
+    )
+)
 
-now_mmt = datetime.now(MMT_TZ)
+now_mmt = datetime.now(
+    MMT_TZ
+)
 
-# Today 12:00 PM
+
+# ============================================================
+# 4. 12:00 PM → NEXT DAY 12:00 PM WINDOW
+# ============================================================
+
 window_start = datetime(
     now_mmt.year,
     now_mmt.month,
@@ -54,480 +87,362 @@ window_start = datetime(
     tzinfo=MMT_TZ
 )
 
-# Tomorrow 12:00 PM
-window_end = window_start + timedelta(days=1)
+window_end = (
+    window_start
+    + timedelta(days=1)
+)
 
-date_today_str = window_start.strftime("%Y-%m-%d")
-date_tomorrow_str = window_end.strftime("%Y-%m-%d")
+date_today_str = window_start.strftime(
+    "%Y-%m-%d"
+)
 
-
-# ============================================================
-# 3. TEST MODE
-# ============================================================
-
-# IMPORTANT:
-# Only UEFA Champions League
-TEST_LEAGUE = "champions league"
-
-# Maximum matches to evaluate
-MAX_MATCHES = 5
-
-# Delay between API calls
-# Free API plan protection
-API_DELAY = 7
+date_tomorrow_str = window_end.strftime(
+    "%Y-%m-%d"
+)
 
 
 # ============================================================
-# 4. CHAMPIONS LEAGUE FILTER
+# 5. CHAMPIONS LEAGUE FILTER
 # ============================================================
 
-def is_champions_league(league_name, country_name, home_name, away_name):
+CHAMPIONS_LEAGUE_NAMES = {
+    "uefa champions league",
+    "champions league",
+}
 
-    league = (league_name or "").lower().strip()
-    country = (country_name or "").lower().strip()
-    home = (home_name or "").lower().strip()
-    away = (away_name or "").lower().strip()
 
-    combined = f"{league} {country} {home} {away}"
+def is_champions_league(fixture):
+    """
+    UEFA Champions League ONLY.
+    """
 
-    # --------------------------------------------------------
-    # BLACKLIST
-    # --------------------------------------------------------
+    league_name = (
+        fixture
+        .get("league", {})
+        .get("name", "")
+        .strip()
+        .lower()
+    )
 
-    blacklist_words = [
-        "women",
-        "fem",
-        "youth",
-        "academy",
-        "reserve",
-        "reserves",
-        "u14",
-        "u15",
-        "u16",
-        "u17",
-        "u18",
-        "u19",
-        "u20",
-        "u21",
-        "u22",
-        "u23",
-        "under-17",
-        "under-18",
-        "under-19",
-        "under-21",
-    ]
+    return league_name in CHAMPIONS_LEAGUE_NAMES
 
-    if any(word in combined for word in blacklist_words):
-        return False
 
-    # --------------------------------------------------------
-    # TEAM NAME RESERVE / B / C CHECK
-    # --------------------------------------------------------
+# ============================================================
+# 6. BLACKLIST
+# ============================================================
 
-    if re.search(
-        r"\b(ii|iii|b|c|u\s?-?\d{2})\b",
-        home
+BLACKLIST_WORDS = [
+    "women",
+    "woman",
+    "fem",
+    "youth",
+    "u14",
+    "u15",
+    "u16",
+    "u17",
+    "u18",
+    "u19",
+    "u20",
+    "u21",
+    "u22",
+    "u23",
+    "reserve",
+    "reserves",
+    "amateur",
+    "academy",
+]
+
+
+def is_blacklisted_fixture(fixture):
+
+    league_name = (
+        fixture
+        .get("league", {})
+        .get("name", "")
+        .lower()
+    )
+
+    home_name = (
+        fixture
+        .get("teams", {})
+        .get("home", {})
+        .get("name", "")
+        .lower()
+    )
+
+    away_name = (
+        fixture
+        .get("teams", {})
+        .get("away", {})
+        .get("name", "")
+        .lower()
+    )
+
+    combined = (
+        f"{league_name} "
+        f"{home_name} "
+        f"{away_name}"
+    )
+
+    if any(
+        word in combined
+        for word in BLACKLIST_WORDS
     ):
-        return False
+        return True
 
-    if re.search(
-        r"\b(ii|iii|b|c|u\s?-?\d{2})\b",
-        away
-    ):
-        return False
-
-    # --------------------------------------------------------
-    # CHAMPIONS LEAGUE ONLY
-    # --------------------------------------------------------
-
-    champions_keywords = [
-        "uefa champions league",
-        "champions league",
-    ]
-
-    return any(keyword in league for keyword in champions_keywords)
+    return False
 
 
 # ============================================================
-# 5. API FETCH ENGINE
+# 7. API REQUEST ENGINE
 # ============================================================
 
-def fetch_api(endpoint):
+def api_request(
+    endpoint,
+    delay=True
+):
+    """
+    API-Football request.
 
-    global current_key_index
+    IMPORTANT:
+    - No last parameter.
+    - No fake fallback.
+    - Full API error is returned.
+    """
 
-    url = f"https://v3.football.api-sports.io/{endpoint}"
-
-    active_key = API_KEYS[current_key_index]
+    url = (
+        f"{API_BASE_URL}/"
+        f"{endpoint}"
+    )
 
     headers = {
-        "x-apisports-key": active_key,
+        "x-apisports-key": API_KEY,
         "Accept": "application/json",
     }
 
+    if delay:
+        time.sleep(
+            API_DELAY_SECONDS
+        )
+
     print()
-    print("------------------------------------------------------------")
+    print("-" * 60)
     print("🌐 API REQUEST")
-    print("------------------------------------------------------------")
-    print(f"Endpoint : {endpoint}")
-    print(f"Key      : {active_key[:8]}***")
+    print("-" * 60)
+
+    print(
+        f"Endpoint : {endpoint}"
+    )
+
+    print(
+        f"Key      : "
+        f"{API_KEY[:8]}***"
+    )
 
     try:
 
-        res = requests.get(
+        response = requests.get(
             url,
             headers=headers,
-            timeout=20
+            timeout=30,
         )
 
-        print(f"HTTP Status : {res.status_code}")
+        print(
+            f"HTTP Status : "
+            f"{response.status_code}"
+        )
 
         # ----------------------------------------------------
-        # Try JSON
+        # JSON parsing
         # ----------------------------------------------------
 
         try:
-            data = res.json()
-        except ValueError:
 
-            print("❌ API returned invalid JSON.")
-            print("Raw response:")
-            print(res.text[:500])
+            data = response.json()
 
-            return []
+        except Exception:
 
-        # ----------------------------------------------------
-        # API Errors
-        # ----------------------------------------------------
+            print(
+                "❌ Response is not valid JSON."
+            )
 
-        errors = data.get("errors", {})
-        results = data.get("results", 0)
-        response = data.get("response", [])
+            print(
+                response.text[:1000]
+            )
 
-        print(f"API Results : {results}")
-        print(f"API Errors  : {errors}")
-        print(f"Response    : {len(response)} items")
+            return {
+                "ok": False,
+                "response": [],
+                "errors": {
+                    "client": "INVALID_JSON"
+                },
+                "results": 0,
+                "status_code": response.status_code,
+            }
 
-        # ----------------------------------------------------
-        # HTTP ERROR
-        # ----------------------------------------------------
+        errors = data.get(
+            "errors",
+            {}
+        )
 
-        if res.status_code != 200:
+        results = data.get(
+            "results",
+            0
+        )
 
-            print("❌ HTTP ERROR")
+        response_data = data.get(
+            "response",
+            []
+        )
 
-            # If rate limited, rotate key
-            if res.status_code == 429:
+        print(
+            f"API Results : {results}"
+        )
 
-                print("⚠️ RATE LIMIT DETECTED")
+        print(
+            f"API Errors  : {errors}"
+        )
 
-                if len(API_KEYS) > 1:
-
-                    current_key_index = (
-                        current_key_index + 1
-                    ) % len(API_KEYS)
-
-                    print(
-                        "🔄 Switching API key to:",
-                        API_KEYS[current_key_index][:8] + "***"
-                    )
-
-                else:
-
-                    print(
-                        "⚠️ Only one API key available."
-                    )
-
-            return []
+        print(
+            f"Response    : "
+            f"{len(response_data)} items"
+        )
 
         # ----------------------------------------------------
-        # API ERROR OBJECT
+        # HTTP error
+        # ----------------------------------------------------
+
+        if response.status_code != 200:
+
+            print(
+                "❌ HTTP ERROR"
+            )
+
+            return {
+                "ok": False,
+                "response": [],
+                "errors": errors,
+                "results": results,
+                "status_code": response.status_code,
+            }
+
+        # ----------------------------------------------------
+        # API error
         # ----------------------------------------------------
 
         if errors:
 
-            print("❌ API ERROR:", errors)
+            print(
+                f"❌ API ERROR: {errors}"
+            )
 
-            return []
-
-        # ----------------------------------------------------
-        # EMPTY RESPONSE
-        # ----------------------------------------------------
-
-        if not response:
-
-            print("⚠️ API returned ZERO data.")
-
-            return []
+            return {
+                "ok": False,
+                "response": [],
+                "errors": errors,
+                "results": results,
+                "status_code": response.status_code,
+            }
 
         # ----------------------------------------------------
-        # SUCCESS
+        # Empty response
         # ----------------------------------------------------
 
-        print("✅ API DATA RECEIVED")
+        if not response_data:
 
-        return response
+            print(
+                "⚠️ API returned 0 items."
+            )
+
+            return {
+                "ok": False,
+                "response": [],
+                "errors": {
+                    "data": "EMPTY_RESPONSE"
+                },
+                "results": 0,
+                "status_code": response.status_code,
+            }
+
+        print(
+            "✅ API DATA RECEIVED"
+        )
+
+        return {
+            "ok": True,
+            "response": response_data,
+            "errors": {},
+            "results": results,
+            "status_code": response.status_code,
+        }
 
     except requests.exceptions.Timeout:
 
-        print("❌ API REQUEST TIMEOUT")
+        print(
+            "❌ REQUEST TIMEOUT"
+        )
 
-        return []
+        return {
+            "ok": False,
+            "response": [],
+            "errors": {
+                "client": "TIMEOUT"
+            },
+            "results": 0,
+            "status_code": None,
+        }
 
     except requests.exceptions.ConnectionError:
 
-        print("❌ API CONNECTION ERROR")
+        print(
+            "❌ CONNECTION ERROR"
+        )
 
-        return []
-
-    except requests.exceptions.RequestException as e:
-
-        print("❌ REQUEST ERROR:", e)
-
-        return []
+        return {
+            "ok": False,
+            "response": [],
+            "errors": {
+                "client": "CONNECTION_ERROR"
+            },
+            "results": 0,
+            "status_code": None,
+        }
 
     except Exception as e:
 
-        print("❌ UNKNOWN API ERROR:", e)
-
-        return []
-
-
-# ============================================================
-# 6. GET LAST 5 HOME / AWAY MATCHES
-# ============================================================
-
-def get_l5(team_id, venue, team_name=""):
-
-    print()
-    print("=" * 60)
-    print(f"📊 L5 DATA REQUEST")
-    print("=" * 60)
-    print(f"Team   : {team_name}")
-    print(f"Team ID: {team_id}")
-    print(f"Venue  : {venue}")
-
-    fixtures = fetch_api(
-        f"fixtures?team={team_id}&last=15"
-    )
-
-    # --------------------------------------------------------
-    # If API returned no data
-    # --------------------------------------------------------
-
-    if not fixtures:
-
         print(
-            f"❌ {team_name}: No fixture data received."
+            f"❌ UNKNOWN ERROR: {e}"
         )
 
         return {
-            "available": False,
-            "reason": "API_DATA_UNAVAILABLE",
-            "matches_found": 0,
-            "over_pct": None,
-            "under_pct": None,
-            "btts_pct": None,
-            "gf_avg": None,
-            "ga_avg": None,
-            "scorelines": [],
+            "ok": False,
+            "response": [],
+            "errors": {
+                "client": str(e)
+            },
+            "results": 0,
+            "status_code": None,
         }
-
-    # --------------------------------------------------------
-    # Completed matches only
-    # --------------------------------------------------------
-
-    completed_statuses = [
-        "FT",
-        "AET",
-        "PEN"
-    ]
-
-    past_matches = [
-        f
-        for f in fixtures
-        if f.get("fixture", {})
-        .get("status", {})
-        .get("short") in completed_statuses
-    ]
-
-    print(
-        f"Completed fixtures received: {len(past_matches)}"
-    )
-
-    # --------------------------------------------------------
-    # Home / Away filtering
-    # --------------------------------------------------------
-
-    selected = []
-
-    for f in past_matches:
-
-        home_id = f.get("teams", {}).get(
-            "home", {}
-        ).get("id")
-
-        away_id = f.get("teams", {}).get(
-            "away", {}
-        ).get("id")
-
-        if venue == "HOME" and home_id == team_id:
-            selected.append(f)
-
-        elif venue == "AWAY" and away_id == team_id:
-            selected.append(f)
-
-    # --------------------------------------------------------
-    # Take last 5
-    # --------------------------------------------------------
-
-    selected = selected[:5]
-
-    print(
-        f"Selected {venue} matches: {len(selected)}"
-    )
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # DO NOT return fake 50% data.
-    # --------------------------------------------------------
-
-    if len(selected) < 5:
-
-        print(
-            f"⚠️ WARNING: Only {len(selected)} "
-            f"{venue} matches available."
-        )
-
-    if not selected:
-
-        print(
-            f"❌ No usable {venue} matches."
-        )
-
-        return {
-            "available": False,
-            "reason": "NO_HOME_AWAY_MATCHES",
-            "matches_found": 0,
-            "over_pct": None,
-            "under_pct": None,
-            "btts_pct": None,
-            "gf_avg": None,
-            "ga_avg": None,
-            "scorelines": [],
-        }
-
-    # --------------------------------------------------------
-    # Statistics
-    # --------------------------------------------------------
-
-    over_cnt = 0
-    btts_cnt = 0
-
-    gf_tot = 0
-    ga_tot = 0
-
-    scorelines = []
-
-    for f in selected:
-
-        goals = f.get("goals", {})
-
-        gh = goals.get("home")
-
-        ga = goals.get("away")
-
-        if gh is None:
-            gh = 0
-
-        if ga is None:
-            ga = 0
-
-        total_goals = gh + ga
-
-        # Over 2.5
-        if total_goals >= 3:
-            over_cnt += 1
-
-        # BTTS
-        if gh > 0 and ga > 0:
-            btts_cnt += 1
-
-        # Team GF / GA
-        is_home_team = (
-            f["teams"]["home"]["id"] == team_id
-        )
-
-        if is_home_team:
-
-            gf = gh
-            ga_value = ga
-
-        else:
-
-            gf = ga
-            ga_value = gh
-
-        gf_tot += gf
-        ga_tot += ga_value
-
-        scorelines.append({
-            "date": f["fixture"]["date"][:10],
-            "home": f["teams"]["home"]["name"],
-            "away": f["teams"]["away"]["name"],
-            "gh": gh,
-            "ga": ga,
-            "total": total_goals,
-        })
-
-    n = len(selected)
-
-    over_pct = round(
-        (over_cnt / n) * 100
-    )
-
-    under_pct = round(
-        ((n - over_cnt) / n) * 100
-    )
-
-    btts_pct = round(
-        (btts_cnt / n) * 100
-    )
-
-    gf_avg = round(
-        gf_tot / n,
-        2
-    )
-
-    ga_avg = round(
-        ga_tot / n,
-        2
-    )
-
-    print()
-    print("📈 CALCULATED STATS")
-    print(f"Over 2.5 : {over_pct}%")
-    print(f"Under 2.5: {under_pct}%")
-    print(f"BTTS     : {btts_pct}%")
-    print(f"GF Avg   : {gf_avg}")
-    print(f"GA Avg   : {ga_avg}")
-
-    return {
-        "available": True,
-        "reason": "OK",
-        "matches_found": n,
-        "over_pct": over_pct,
-        "under_pct": under_pct,
-        "btts_pct": btts_pct,
-        "gf_avg": gf_avg,
-        "ga_avg": ga_avg,
-        "scorelines": scorelines,
-    }
 
 
 # ============================================================
-# 7. FETCH TODAY + TOMORROW FIXTURES
+# 8. FETCH UPCOMING FIXTURES
 # ============================================================
+
+print()
+print("=" * 70)
+print("🔑 API CONFIGURATION")
+print("=" * 70)
+
+print(
+    f"Total API Keys Loaded : "
+    f"{len(API_KEYS)}"
+)
+
+print(
+    f"Active API Key        : "
+    f"{API_KEY[:8]}***"
+)
 
 print()
 print("=" * 70)
@@ -539,7 +454,10 @@ print(
 )
 
 print(
-    f"{window_start.strftime('%Y-%m-%d %I:%M %p')} MMT"
+    window_start.strftime(
+        "%Y-%m-%d %I:%M %p"
+    )
+    + " MMT"
 )
 
 print(
@@ -547,165 +465,218 @@ print(
 )
 
 print(
-    f"{window_end.strftime('%Y-%m-%d %I:%M %p')} MMT"
-)
-
-print()
-print("League Filter : UEFA Champions League ONLY")
-print(f"Maximum Games : {MAX_MATCHES}")
-print(f"API Delay     : {API_DELAY} seconds")
-print("=" * 70)
-
-
-# ============================================================
-# TODAY FIXTURES
-# ============================================================
-
-print()
-print("📅 Fetching today's fixtures...")
-
-raw_today = fetch_api(
-    f"fixtures?date={date_today_str}&timezone=Asia/Yangon"
-)
-
-time.sleep(API_DELAY)
-
-
-# ============================================================
-# TOMORROW FIXTURES
-# ============================================================
-
-print()
-print("📅 Fetching tomorrow's fixtures...")
-
-raw_tomorrow = fetch_api(
-    f"fixtures?date={date_tomorrow_str}&timezone=Asia/Yangon"
-)
-
-time.sleep(API_DELAY)
-
-
-# ============================================================
-# COMBINE
-# ============================================================
-
-combined_fixtures = (
-    raw_today +
-    raw_tomorrow
+    window_end.strftime(
+        "%Y-%m-%d %I:%M %p"
+    )
+    + " MMT"
 )
 
 print()
 print(
-    f"Raw fixtures received: {len(combined_fixtures)}"
+    "League Filter : "
+    "UEFA Champions League ONLY"
+)
+
+print(
+    f"Maximum Games : {MAX_GAMES}"
+)
+
+print(
+    f"API Delay     : "
+    f"{API_DELAY_SECONDS} seconds"
+)
+
+print(
+    f"History Range : "
+    f"{HISTORY_DAYS} days"
+)
+
+print(
+    "L5 Method     : "
+    "DATE RANGE — NO last parameter"
+)
+
+print("=" * 70)
+
+
+# ============================================================
+# 9. TODAY FIXTURES
+# ============================================================
+
+print()
+print(
+    "📅 Fetching today's fixtures..."
+)
+
+today_result = api_request(
+    f"fixtures?"
+    f"date={date_today_str}"
+    f"&timezone=Asia/Yangon",
+    delay=False
+)
+
+raw_today = (
+    today_result["response"]
+    if today_result["ok"]
+    else []
 )
 
 
 # ============================================================
-# FILTER CHAMPIONS LEAGUE
+# 10. TOMORROW FIXTURES
+# ============================================================
+
+print()
+print(
+    "📅 Fetching tomorrow's fixtures..."
+)
+
+tomorrow_result = api_request(
+    f"fixtures?"
+    f"date={date_tomorrow_str}"
+    f"&timezone=Asia/Yangon"
+)
+
+raw_tomorrow = (
+    tomorrow_result["response"]
+    if tomorrow_result["ok"]
+    else []
+)
+
+
+# ============================================================
+# 11. COMBINE FIXTURES
+# ============================================================
+
+combined_fixtures = (
+    raw_today
+    + raw_tomorrow
+)
+
+print()
+print(
+    f"Raw fixtures received: "
+    f"{len(combined_fixtures)}"
+)
+
+
+# ============================================================
+# 12. SELECT CHAMPIONS LEAGUE FIXTURES
 # ============================================================
 
 seen_ids = set()
 
 upcoming_fixtures = []
 
+for fixture in combined_fixtures:
 
-for f in combined_fixtures:
-
-    fixture = f.get("fixture", {})
-
-    f_id = fixture.get("id")
-
-    if not f_id:
-        continue
-
-    if f_id in seen_ids:
-        continue
-
-    seen_ids.add(f_id)
-
-    status_short = (
+    fixture_id = (
         fixture
-        .get("status", {})
-        .get("short")
+        .get("fixture", {})
+        .get("id")
     )
 
-    # Upcoming only
-    if status_short not in [
+    if not fixture_id:
+        continue
+
+    if fixture_id in seen_ids:
+        continue
+
+    seen_ids.add(
+        fixture_id
+    )
+
+    # --------------------------------------------------------
+    # Status
+    # --------------------------------------------------------
+
+    status = (
+        fixture
+        .get("fixture", {})
+        .get("status", {})
+        .get("short", "")
+    )
+
+    if status not in [
         "NS",
         "TBD"
     ]:
         continue
 
-    f_time_str = fixture.get("date")
+    # --------------------------------------------------------
+    # League filter
+    # --------------------------------------------------------
 
-    if not f_time_str:
+    if not is_champions_league(
+        fixture
+    ):
+        continue
+
+    # --------------------------------------------------------
+    # Blacklist
+    # --------------------------------------------------------
+
+    if is_blacklisted_fixture(
+        fixture
+    ):
+        continue
+
+    # --------------------------------------------------------
+    # Fixture datetime
+    # --------------------------------------------------------
+
+    fixture_time = (
+        fixture
+        .get("fixture", {})
+        .get("date")
+    )
+
+    if not fixture_time:
         continue
 
     try:
 
-        f_dt = datetime.fromisoformat(
-            f_time_str
+        fixture_dt = (
+            datetime.fromisoformat(
+                fixture_time
+            )
         )
 
     except Exception:
 
-        print(
-            "⚠️ Invalid fixture datetime:",
-            f_time_str
-        )
-
         continue
 
-    # Time window
+    # --------------------------------------------------------
+    # MMT window
+    # --------------------------------------------------------
+
     if not (
-        window_start <= f_dt <= window_end
+        window_start
+        <= fixture_dt
+        <= window_end
     ):
         continue
 
-    league_name = f.get(
-        "league",
-        {}
-    ).get("name", "")
-
-    country_name = f.get(
-        "league",
-        {}
-    ).get("country", "")
-
-    home_name = f.get(
-        "teams",
-        {}
-    ).get("home", {}).get(
-        "name", ""
+    upcoming_fixtures.append(
+        fixture
     )
 
-    away_name = f.get(
-        "teams",
-        {}
-    ).get("away", {}).get(
-        "name", ""
-    )
 
-    # Champions League ONLY
-    if not is_champions_league(
-        league_name,
-        country_name,
-        home_name,
-        away_name
-    ):
-        continue
+# Sort by kickoff
+upcoming_fixtures.sort(
+    key=lambda x:
+        x["fixture"]["date"]
+)
 
-    upcoming_fixtures.append(f)
+# Maximum test matches
+upcoming_fixtures = (
+    upcoming_fixtures[:MAX_GAMES]
+)
 
 
 # ============================================================
-# LIMIT MATCHES
+# 13. PRINT SELECTED FIXTURES
 # ============================================================
-
-upcoming_fixtures = upcoming_fixtures[
-    :MAX_MATCHES
-]
-
 
 print()
 print("=" * 70)
@@ -713,95 +684,1006 @@ print("🏆 CHAMPIONS LEAGUE FIXTURES FOUND")
 print("=" * 70)
 
 print(
-    f"Total Champions League matches selected: "
+    "Total Champions League "
+    f"matches selected: "
     f"{len(upcoming_fixtures)}"
 )
 
-for i, f in enumerate(
+for index, fixture in enumerate(
     upcoming_fixtures,
     start=1
 ):
 
+    home = (
+        fixture["teams"]["home"]["name"]
+    )
+
+    away = (
+        fixture["teams"]["away"]["name"]
+    )
+
+    date_time = (
+        fixture["fixture"]["date"]
+    )
+
     print(
-        f"{i}. "
-        f"{f['teams']['home']['name']} "
-        f"vs "
-        f"{f['teams']['away']['name']} "
-        f"| "
-        f"{f['fixture']['date']}"
+        f"{index}. "
+        f"{home} vs {away} | "
+        f"{date_time}"
     )
 
 print("=" * 70)
 
 
 # ============================================================
-# 8. EVALUATE MATCHES
+# 14. HISTORY CACHE
+# ============================================================
+
+# Same team ကို တစ်ကြိမ်ထက်ပိုပြီး request မလုပ်ရန်
+history_cache = {}
+
+history_request_count = 0
+
+
+# ============================================================
+# 15. GET TEAM HISTORY
+# ============================================================
+
+def get_team_history(
+    team_id,
+    team_name
+):
+
+    global history_request_count
+
+    # --------------------------------------------------------
+    # Cache
+    # --------------------------------------------------------
+
+    if team_id in history_cache:
+
+        print(
+            f"♻️ Using cached history: "
+            f"{team_name}"
+        )
+
+        return history_cache[
+            team_id
+        ]
+
+
+    # --------------------------------------------------------
+    # Quota protection
+    # --------------------------------------------------------
+
+    if (
+        history_request_count
+        >= MAX_HISTORY_REQUESTS
+    ):
+
+        print(
+            "❌ Maximum history "
+            "request limit reached."
+        )
+
+        result = {
+            "available": False,
+            "reason": "LOCAL_REQUEST_LIMIT",
+            "matches": [],
+        }
+
+        history_cache[
+            team_id
+        ] = result
+
+        return result
+
+
+    # --------------------------------------------------------
+    # Date range
+    # --------------------------------------------------------
+
+    history_end = (
+        window_start
+        - timedelta(
+            days=1
+        )
+    )
+
+    history_start = (
+        history_end
+        - timedelta(
+            days=HISTORY_DAYS
+        )
+    )
+
+    from_date = (
+        history_start.strftime(
+            "%Y-%m-%d"
+        )
+    )
+
+    to_date = (
+        history_end.strftime(
+            "%Y-%m-%d"
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # NO last=15
+    #
+    # Free plan restriction ကိုရှောင်ရန်
+    # date range သုံးထားသည်။
+    # --------------------------------------------------------
+
+    endpoint = (
+        "fixtures?"
+        f"team={team_id}"
+        f"&from={from_date}"
+        f"&to={to_date}"
+        f"&timezone=Asia/Yangon"
+    )
+
+
+    print()
+    print("=" * 60)
+    print("📊 TEAM HISTORY REQUEST")
+    print("=" * 60)
+
+    print(
+        f"Team   : {team_name}"
+    )
+
+    print(
+        f"Team ID: {team_id}"
+    )
+
+    print(
+        f"From   : {from_date}"
+    )
+
+    print(
+        f"To     : {to_date}"
+    )
+
+    print(
+        "Method : from/to "
+        "(NO last parameter)"
+    )
+
+
+    history_request_count += 1
+
+    result = api_request(
+        endpoint
+    )
+
+
+    # --------------------------------------------------------
+    # API failure
+    # --------------------------------------------------------
+
+    if not result["ok"]:
+
+        api_reason = result.get(
+            "errors",
+            {}
+        )
+
+        data = {
+            "available": False,
+            "reason": (
+                "API_ERROR"
+            ),
+            "errors": api_reason,
+            "matches": [],
+        }
+
+        history_cache[
+            team_id
+        ] = data
+
+        print(
+            f"❌ {team_name}: "
+            f"No fixture data received."
+        )
+
+        return data
+
+
+    matches = result[
+        "response"
+    ]
+
+
+    # --------------------------------------------------------
+    # Finished matches only
+    # --------------------------------------------------------
+
+    finished = []
+
+    for fixture in matches:
+
+        status = (
+            fixture
+            .get("fixture", {})
+            .get("status", {})
+            .get("short", "")
+        )
+
+        if status not in [
+            "FT",
+            "AET",
+            "PEN"
+        ]:
+            continue
+
+        finished.append(
+            fixture
+        )
+
+
+    # Newest first
+    finished.sort(
+        key=lambda x:
+            x["fixture"]["date"],
+        reverse=True
+    )
+
+
+    data = {
+        "available": True,
+        "reason": "OK",
+        "matches": finished,
+    }
+
+    history_cache[
+        team_id
+    ] = data
+
+
+    print(
+        f"✅ {team_name}: "
+        f"{len(finished)} finished "
+        f"matches found."
+    )
+
+    return data
+
+
+# ============================================================
+# 16. SELECT L5 BY VENUE
+# ============================================================
+
+def get_l5(
+    team_id,
+    venue,
+    team_name
+):
+
+    history = get_team_history(
+        team_id,
+        team_name
+    )
+
+    if not history.get(
+        "available",
+        False
+    ):
+
+        return {
+            "available": False,
+            "reason": history.get(
+                "reason",
+                "API_DATA_UNAVAILABLE"
+            ),
+            "errors": history.get(
+                "errors",
+                {}
+            ),
+            "over_pct": None,
+            "under_pct": None,
+            "btts_pct": None,
+            "gf_avg": None,
+            "ga_avg": None,
+            "scorelines": [],
+        }
+
+
+    matches = history.get(
+        "matches",
+        []
+    )
+
+
+    # --------------------------------------------------------
+    # Venue filter
+    # --------------------------------------------------------
+
+    selected = []
+
+    for fixture in matches:
+
+        home_id = (
+            fixture["teams"]
+            ["home"]["id"]
+        )
+
+        away_id = (
+            fixture["teams"]
+            ["away"]["id"]
+        )
+
+        if (
+            venue == "HOME"
+            and home_id == team_id
+        ):
+
+            selected.append(
+                fixture
+            )
+
+        elif (
+            venue == "AWAY"
+            and away_id == team_id
+        ):
+
+            selected.append(
+                fixture
+            )
+
+
+        if len(selected) >= 5:
+            break
+
+
+    # --------------------------------------------------------
+    # Not enough venue-specific matches
+    # --------------------------------------------------------
+
+    if len(selected) < 5:
+
+        print(
+            f"⚠️ {team_name}: "
+            f"Only {len(selected)} "
+            f"{venue} matches found "
+            f"in {HISTORY_DAYS} days."
+        )
+
+        return {
+            "available": False,
+            "reason": (
+                "INSUFFICIENT_L5_DATA"
+            ),
+            "errors": {},
+            "over_pct": None,
+            "under_pct": None,
+            "btts_pct": None,
+            "gf_avg": None,
+            "ga_avg": None,
+            "scorelines": [],
+        }
+
+
+    # ========================================================
+    # CALCULATE STATISTICS
+    # ========================================================
+
+    over_count = 0
+    btts_count = 0
+
+    gf_total = 0
+    ga_total = 0
+
+    scorelines = []
+
+
+    for fixture in selected:
+
+        goals = fixture.get(
+            "goals",
+            {}
+        )
+
+        home_goals = goals.get(
+            "home"
+        )
+
+        away_goals = goals.get(
+            "away"
+        )
+
+        # Missing goals = invalid record
+        if (
+            home_goals is None
+            or away_goals is None
+        ):
+            continue
+
+
+        total_goals = (
+            home_goals
+            + away_goals
+        )
+
+
+        # ----------------------------------------------------
+        # Over 2.5
+        # ----------------------------------------------------
+
+        if total_goals >= 3:
+
+            over_count += 1
+
+
+        # ----------------------------------------------------
+        # BTTS
+        # ----------------------------------------------------
+
+        if (
+            home_goals > 0
+            and away_goals > 0
+        ):
+
+            btts_count += 1
+
+
+        # ----------------------------------------------------
+        # GF / GA
+        # ----------------------------------------------------
+
+        home_id = (
+            fixture["teams"]
+            ["home"]["id"]
+        )
+
+
+        if home_id == team_id:
+
+            gf = home_goals
+            ga = away_goals
+
+        else:
+
+            gf = away_goals
+            ga = home_goals
+
+
+        gf_total += gf
+        ga_total += ga
+
+
+        # ----------------------------------------------------
+        # Scoreline
+        # ----------------------------------------------------
+
+        scorelines.append(
+            {
+                "date":
+                    fixture[
+                        "fixture"
+                    ][
+                        "date"
+                    ][:10],
+
+                "home":
+                    fixture[
+                        "teams"
+                    ][
+                        "home"
+                    ][
+                        "name"
+                    ],
+
+                "away":
+                    fixture[
+                        "teams"
+                    ][
+                        "away"
+                    ][
+                        "name"
+                    ],
+
+                "gh":
+                    home_goals,
+
+                "ga":
+                    away_goals,
+
+                "tot":
+                    total_goals,
+            }
+        )
+
+
+    # --------------------------------------------------------
+    # Valid sample count
+    # --------------------------------------------------------
+
+    n = len(
+        scorelines
+    )
+
+
+    if n < 5:
+
+        return {
+            "available": False,
+            "reason": (
+                "INSUFFICIENT_VALID_MATCHES"
+            ),
+            "errors": {},
+            "over_pct": None,
+            "under_pct": None,
+            "btts_pct": None,
+            "gf_avg": None,
+            "ga_avg": None,
+            "scorelines": scorelines,
+        }
+
+
+    # ========================================================
+    # RETURN REAL DATA
+    # ========================================================
+
+    stats = {
+
+        "available": True,
+
+        "reason": "OK",
+
+        "matches_used": n,
+
+        "over_pct":
+            int(
+                (
+                    over_count
+                    / n
+                )
+                * 100
+            ),
+
+        "under_pct":
+            int(
+                (
+                    (
+                        n
+                        - over_count
+                    )
+                    / n
+                )
+                * 100
+            ),
+
+        "btts_pct":
+            int(
+                (
+                    btts_count
+                    / n
+                )
+                * 100
+            ),
+
+        "gf_avg":
+            round(
+                gf_total
+                / n,
+                2
+            ),
+
+        "ga_avg":
+            round(
+                ga_total
+                / n,
+                2
+            ),
+
+        "scorelines":
+            scorelines,
+    }
+
+
+    print(
+        f"✅ {team_name} "
+        f"({venue}) L5 READY"
+    )
+
+    print(
+        f"   Over 2.5 : "
+        f"{stats['over_pct']}%"
+    )
+
+    print(
+        f"   Under 2.5: "
+        f"{stats['under_pct']}%"
+    )
+
+    print(
+        f"   BTTS     : "
+        f"{stats['btts_pct']}%"
+    )
+
+    print(
+        f"   GF Avg   : "
+        f"{stats['gf_avg']}"
+    )
+
+    print(
+        f"   GA Avg   : "
+        f"{stats['ga_avg']}"
+    )
+
+    return stats
+
+
+# ============================================================
+# 17. MODEL CALCULATION
+# ============================================================
+
+def calculate_model(
+    home_stats,
+    away_stats
+):
+
+    # --------------------------------------------------------
+    # Do NOT calculate if data unavailable
+    # --------------------------------------------------------
+
+    if not (
+        home_stats.get(
+            "available",
+            False
+        )
+        and
+        away_stats.get(
+            "available",
+            False
+        )
+    ):
+
+        return {
+            "signal":
+                "DATA_UNAVAILABLE",
+
+            "prob":
+                None,
+
+            "edge":
+                None,
+        }
+
+
+    # ========================================================
+    # 5-STAR OVER RULE
+    # ========================================================
+
+    is_over = (
+
+        home_stats[
+            "over_pct"
+        ] >= 60
+
+        and
+
+        away_stats[
+            "over_pct"
+        ] >= 60
+
+        and
+
+        home_stats[
+            "btts_pct"
+        ] >= 60
+
+        and
+
+        away_stats[
+            "btts_pct"
+        ] >= 60
+
+        and
+
+        home_stats[
+            "gf_avg"
+        ] > 1.5
+
+        and
+
+        home_stats[
+            "ga_avg"
+        ] > 1.0
+
+        and
+
+        away_stats[
+            "gf_avg"
+        ] > 1.0
+
+        and
+
+        away_stats[
+            "ga_avg"
+        ] > 1.0
+    )
+
+
+    # ========================================================
+    # 5-STAR UNDER RULE
+    # ========================================================
+
+    is_under = (
+
+        home_stats[
+            "under_pct"
+        ] >= 60
+
+        and
+
+        away_stats[
+            "under_pct"
+        ] >= 60
+
+        and
+
+        home_stats[
+            "btts_pct"
+        ] <= 50
+
+        and
+
+        away_stats[
+            "btts_pct"
+        ] <= 50
+
+        and
+
+        home_stats[
+            "gf_avg"
+        ] < 1.3
+
+        and
+
+        home_stats[
+            "ga_avg"
+        ] < 1.0
+
+        and
+
+        away_stats[
+            "gf_avg"
+        ] < 1.1
+
+        and
+
+        away_stats[
+            "ga_avg"
+        ] < 1.2
+    )
+
+
+    # ========================================================
+    # OVER PROBABILITY
+    # ========================================================
+
+    avg_over = (
+        home_stats["over_pct"]
+        +
+        away_stats["over_pct"]
+    ) / 2
+
+
+    avg_btts = (
+        home_stats["btts_pct"]
+        +
+        away_stats["btts_pct"]
+    ) / 2
+
+
+    avg_gf = (
+        home_stats["gf_avg"]
+        +
+        away_stats["gf_avg"]
+    )
+
+
+    avg_ga = (
+        home_stats["ga_avg"]
+        +
+        away_stats["ga_avg"]
+    )
+
+
+    gf_component = min(
+        100,
+        (
+            avg_gf
+            / 4.0
+        )
+        * 100
+    )
+
+
+    ga_component = min(
+        100,
+        (
+            avg_ga
+            / 3.2
+        )
+        * 100
+    )
+
+
+    over_prob = round(
+
+        (
+            avg_over
+            * 0.40
+        )
+
+        +
+
+        (
+            avg_btts
+            * 0.20
+        )
+
+        +
+
+        (
+            gf_component
+            * 0.20
+        )
+
+        +
+
+        (
+            ga_component
+            * 0.20
+        ),
+
+        1
+    )
+
+
+    over_edge = round(
+        over_prob
+        - 60,
+        1
+    )
+
+
+    # ========================================================
+    # SIGNAL
+    # ========================================================
+
+    if (
+        is_over
+        and
+        over_edge >= 5
+    ):
+
+        signal = (
+            "OVER_2_5"
+        )
+
+    elif is_under:
+
+        signal = (
+            "UNDER_2_5"
+        )
+
+    else:
+
+        signal = (
+            "NEUTRAL"
+        )
+
+
+    return {
+        "signal":
+            signal,
+
+        "prob":
+            over_prob,
+
+        "edge":
+            over_edge,
+    }
+
+
+# ============================================================
+# 18. MAIN EVALUATION
 # ============================================================
 
 evaluated_matches = []
 
 
-for idx, fix in enumerate(
-    upcoming_fixtures
+for index, fixture in enumerate(
+    upcoming_fixtures,
+    start=1
 ):
 
-    print()
+    home_id = (
+        fixture["teams"]
+        ["home"]["id"]
+    )
+
+    away_id = (
+        fixture["teams"]
+        ["away"]["id"]
+    )
+
+    home_name = (
+        fixture["teams"]
+        ["home"]["name"]
+    )
+
+    away_name = (
+        fixture["teams"]
+        ["away"]["name"]
+    )
+
+
     print()
     print("#" * 70)
+
     print(
         f"🎯 EVALUATING MATCH "
-        f"{idx + 1}/{len(upcoming_fixtures)}"
+        f"{index}/"
+        f"{len(upcoming_fixtures)}"
     )
+
     print("#" * 70)
 
-    h_id = (
-        fix["teams"]["home"]["id"]
+    print()
+    print(
+        f"⚽ {home_name} "
+        f"vs "
+        f"{away_name}"
     )
 
-    a_id = (
-        fix["teams"]["away"]["id"]
-    )
-
-    h_name = (
-        fix["teams"]["home"]["name"]
-    )
-
-    a_name = (
-        fix["teams"]["away"]["name"]
-    )
 
     # --------------------------------------------------------
     # HOME L5
     # --------------------------------------------------------
 
-    h_stats = get_l5(
-        h_id,
+    home_stats = get_l5(
+        home_id,
         "HOME",
-        h_name
+        home_name
     )
 
-    time.sleep(API_DELAY)
 
     # --------------------------------------------------------
     # AWAY L5
     # --------------------------------------------------------
 
-    a_stats = get_l5(
-        a_id,
+    away_stats = get_l5(
+        away_id,
         "AWAY",
-        a_name
+        away_name
     )
 
-    time.sleep(API_DELAY)
 
-    # ========================================================
-    # DATA AVAILABILITY CHECK
-    # ========================================================
+    # --------------------------------------------------------
+    # MODEL
+    # --------------------------------------------------------
+
+    model = calculate_model(
+        home_stats,
+        away_stats
+    )
+
+
+    # --------------------------------------------------------
+    # Model result
+    # --------------------------------------------------------
 
     if (
-        not h_stats["available"]
-        or
-        not a_stats["available"]
+        model["signal"]
+        == "DATA_UNAVAILABLE"
     ):
 
         print()
@@ -813,349 +1695,199 @@ for idx, fix in enumerate(
             "Reason:"
         )
 
-        if not h_stats["available"]:
-            print(
-                f"Home: {h_stats['reason']}"
-            )
+        print(
+            "Home: "
+            f"{home_stats.get('reason')}"
+        )
 
-        if not a_stats["available"]:
-            print(
-                f"Away: {a_stats['reason']}"
-            )
-
-        signal = "DATA_UNAVAILABLE"
-
-        over_prob = None
-        over_edge = None
+        print(
+            "Away: "
+            f"{away_stats.get('reason')}"
+        )
 
     else:
 
-        # ====================================================
-        # OVER 2.5 RULE
-        # ====================================================
-
-        is_over = (
-
-            h_stats["over_pct"] >= 60
-
-            and
-
-            a_stats["over_pct"] >= 60
-
-            and
-
-            h_stats["btts_pct"] >= 60
-
-            and
-
-            a_stats["btts_pct"] >= 60
-
-            and
-
-            h_stats["gf_avg"] > 1.5
-
-            and
-
-            h_stats["ga_avg"] > 1.0
-
-            and
-
-            a_stats["gf_avg"] > 1.0
-
-            and
-
-            a_stats["ga_avg"] > 1.0
-
-        )
-
-        # ====================================================
-        # UNDER 2.5 RULE
-        # ====================================================
-
-        is_under = (
-
-            h_stats["under_pct"] >= 60
-
-            and
-
-            a_stats["under_pct"] >= 60
-
-            and
-
-            h_stats["btts_pct"] <= 50
-
-            and
-
-            a_stats["btts_pct"] <= 50
-
-            and
-
-            h_stats["gf_avg"] < 1.3
-
-            and
-
-            h_stats["ga_avg"] < 1.0
-
-            and
-
-            a_stats["gf_avg"] < 1.1
-
-            and
-
-            a_stats["ga_avg"] < 1.2
-
-        )
-
-        # ====================================================
-        # MODEL PROBABILITY
-        # ====================================================
-
-        avg_over_pct = (
-            h_stats["over_pct"]
-            +
-            a_stats["over_pct"]
-        ) / 2
-
-        avg_btts_pct = (
-            h_stats["btts_pct"]
-            +
-            a_stats["btts_pct"]
-        ) / 2
-
-        gf_component = min(
-            100,
-            (
-                h_stats["gf_avg"]
-                +
-                a_stats["gf_avg"]
-            )
-            / 4.0
-            * 100
-        )
-
-        ga_component = min(
-            100,
-            (
-                h_stats["ga_avg"]
-                +
-                a_stats["ga_avg"]
-            )
-            / 3.2
-            * 100
-        )
-
-        over_prob = round(
-
-            (
-                avg_over_pct
-                * 0.40
-            )
-
-            +
-
-            (
-                avg_btts_pct
-                * 0.20
-            )
-
-            +
-
-            (
-                gf_component
-                * 0.20
-            )
-
-            +
-
-            (
-                ga_component
-                * 0.20
-            ),
-
-            1
-        )
-
-        # ====================================================
-        # MODEL EDGE
-        # ====================================================
-
-        # Reference probability:
-        # 60% = baseline threshold
-        over_edge = round(
-            over_prob - 60,
-            1
-        )
-
-        # ====================================================
-        # SIGNAL
-        # ====================================================
-
-        if (
-            is_over
-            and
-            over_edge >= 5
-        ):
-
-            signal = "OVER_2_5"
-
-        elif is_under:
-
-            signal = "UNDER_2_5"
-
-        else:
-
-            signal = "NEUTRAL"
-
-        # ====================================================
-        # PRINT MODEL RESULT
-        # ====================================================
-
         print()
-        print("=" * 60)
-        print("🤖 MODEL RESULT")
-        print("=" * 60)
-
         print(
-            f"Over Probability : {over_prob}%"
+            "🎯 MODEL RESULT"
         )
 
         print(
-            f"Model Edge       : {over_edge}%"
+            f"Signal      : "
+            f"{model['signal']}"
         )
 
         print(
-            f"Signal            : {signal}"
+            f"Probability : "
+            f"{model['prob']}%"
         )
 
-        print("=" * 60)
-
-
-    # ========================================================
-    # MATCH TIME
-    # ========================================================
-
-    f_date_display = (
-        fix["fixture"]["date"][:10]
-    )
-
-    f_time_display = (
-        fix["fixture"]["date"][11:16]
-    )
+        print(
+            f"Edge        : "
+            f"{model['edge']:+.1f}%"
+        )
 
 
     # ========================================================
     # SAVE RESULT
     # ========================================================
 
-    evaluated_matches.append({
+    fixture_date = (
+        fixture["fixture"]["date"]
+    )
 
-        "fixture_id":
-            fix["fixture"]["id"],
+    fixture_dt = (
+        datetime.fromisoformat(
+            fixture_date
+        )
+    )
 
-        "league":
-            fix["league"]["name"],
 
-        "country":
-            fix["league"].get(
-                "country",
-                ""
-            ),
+    evaluated_matches.append(
+        {
+            "fixture_id":
+                fixture[
+                    "fixture"
+                ][
+                    "id"
+                ],
 
-        "home":
-            h_name,
+            "league":
+                fixture[
+                    "league"
+                ][
+                    "name"
+                ],
 
-        "away":
-            a_name,
-
-        "date":
-            f_date_display,
-
-        "time":
-            f_time_display,
-
-        "status":
-            fix["fixture"]["status"]["short"],
-
-        "signal":
-            signal,
-
-        "prob":
-            over_prob,
-
-        "edge":
-            over_edge,
-
-        "data_status": {
+            "country":
+                fixture[
+                    "league"
+                ].get(
+                    "country",
+                    ""
+                ),
 
             "home":
-                h_stats["reason"],
+                home_name,
 
             "away":
-                a_stats["reason"],
+                away_name,
 
-        },
+            "date":
+                fixture_dt.strftime(
+                    "%Y-%m-%d"
+                ),
 
-        "h_stats":
-            h_stats,
+            "time":
+                fixture_dt.strftime(
+                    "%H:%M"
+                ),
 
-        "a_stats":
-            a_stats,
+            "status":
+                fixture[
+                    "fixture"
+                ][
+                    "status"
+                ][
+                    "short"
+                ],
 
-    })
+            "signal":
+                model[
+                    "signal"
+                ],
+
+            "prob":
+                model[
+                    "prob"
+                ],
+
+            "edge":
+                model[
+                    "edge"
+                ],
+
+            "h_stats":
+                home_stats,
+
+            "a_stats":
+                away_stats,
+        }
+    )
 
 
 # ============================================================
-# 9. SORT RESULTS
+# 19. SORT RESULTS
 # ============================================================
+
+signal_priority = {
+    "OVER_2_5": 0,
+    "UNDER_2_5": 1,
+    "NEUTRAL": 2,
+    "DATA_UNAVAILABLE": 3,
+}
+
 
 evaluated_matches.sort(
-
-    key=lambda x: (
-
-        0
-        if x["signal"] == "OVER_2_5"
-
-        else 1
-        if x["signal"] == "UNDER_2_5"
-
-        else 2
-        if x["signal"] == "NEUTRAL"
-
-        else 3,
-
-        x["time"]
-
+    key=lambda item: (
+        signal_priority.get(
+            item["signal"],
+            99
+        ),
+        item["date"],
+        item["time"],
     )
 )
 
 
 # ============================================================
-# 10. SAVE JSON
+# 20. SAVE JSON
 # ============================================================
 
 output_data = {
 
-    "test_mode":
-        True,
+    "updated_at":
+        now_mmt.strftime(
+            "%Y-%m-%d %I:%M %p MMT"
+        ),
+
+    "window_start":
+        window_start.isoformat(),
+
+    "window_end":
+        window_end.isoformat(),
+
+    "window_range":
+        (
+            f"{window_start.strftime('%d %b %I:%M %p')}"
+            f" - "
+            f"{window_end.strftime('%d %b %I:%M %p')}"
+            f" MMT"
+        ),
+
+    "mode":
+        "CHAMPIONS_LEAGUE_TEST",
 
     "league_filter":
         "UEFA Champions League ONLY",
 
-    "window_range": (
+    "history_method":
+        "fixtures?team=ID&from=DATE&to=DATE",
 
-        f"{window_start.strftime('%d %b %I:%M %p')}"
-        f" - "
-        f"{window_end.strftime('%d %b %I:%M %p')}"
-        f" MMT"
+    "last_parameter_used":
+        False,
 
-    ),
+    "history_days":
+        HISTORY_DAYS,
+
+    "max_games":
+        MAX_GAMES,
 
     "total_matches":
         len(evaluated_matches),
 
     "matches":
         evaluated_matches,
-
 }
 
 
@@ -1174,17 +1906,17 @@ with open(
 
 
 # ============================================================
-# 11. FINAL SUMMARY
+# 21. FINAL SUMMARY
 # ============================================================
 
-print()
 print()
 print("=" * 70)
 print("✅ TEST COMPLETE")
 print("=" * 70)
 
 print(
-    f"Champions League matches evaluated: "
+    "Champions League matches "
+    f"evaluated: "
     f"{len(evaluated_matches)}"
 )
 
@@ -1199,33 +1931,39 @@ for match in evaluated_matches:
     )
 
     print(
-        f"Signal : {match['signal']}"
+        f"Signal : "
+        f"{match['signal']}"
     )
 
     print(
-        f"Probability : {match['prob']}"
+        f"Probability : "
+        f"{match['prob']}"
     )
 
     print(
-        f"Edge : {match['edge']}"
+        f"Edge : "
+        f"{match['edge']}"
     )
 
     print(
-        f"Home Data : "
-        f"{match['data_status']['home']}"
+        "Home Data : "
+        f"{match['h_stats'].get('reason')}"
     )
 
     print(
-        f"Away Data : "
-        f"{match['data_status']['away']}"
+        "Away Data : "
+        f"{match['a_stats'].get('reason')}"
     )
 
-    print("-" * 70)
+    print(
+        "-" * 70
+    )
 
 
 print()
 print(
-    "💾 Saved to: matches_data.json"
+    "💾 Saved to: "
+    "matches_data.json"
 )
 
 print()
@@ -1234,20 +1972,22 @@ print(
 )
 
 print(
-    "If you see 50% everywhere now,"
+    "This version DOES NOT use "
+    "fixtures?team=ID&last=15."
 )
 
 print(
-    "that is NOT a fake fallback anymore."
+    "L5 data is collected using "
+    "from/to date range and filtered "
+    "locally in Python."
 )
 
 print(
-    "The new version does NOT generate 50% defaults."
+    "No fake 50% fallback values "
+    "are generated."
 )
 
 print(
-    "Check the API DEBUG section above "
-    "for HTTP Status / Results / Errors."
+    "If historical data is insufficient, "
+    "the model returns DATA_UNAVAILABLE."
 )
-
-print("=" * 70)
