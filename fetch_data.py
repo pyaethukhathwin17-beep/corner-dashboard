@@ -1,23 +1,34 @@
 from datetime import datetime, timedelta, timezone
 import json
+import os
 import re
 import time
 import requests
 
 # ============================================================
-# 1. MULTI-API KEYS CONFIGURATION
+# 1. SECURE API KEY CONFIGURATION
 # ============================================================
-API_KEYS = [
-    "e243943e4a085a7f6c3c58bf85a8b3d3",  # Key 1
-    "1ead03cecd516cf48c41b93c7b15116d",  # Key 2
-]
+# GitHub Secrets (API_KEYS_POOL) မှ Key ကို ဦးစွာ ဖတ်မည်
+raw_keys = os.environ.get("API_KEYS_POOL", "")
+
+if raw_keys:
+    API_KEYS = [
+        k.strip().lower()
+        for k in raw_keys.split(",")
+        if k.strip() and len(k.strip()) == 32
+    ]
+else:
+    # Secret မတွေ့ပါက လက်ကျန် Key ကို တိုက်ရိုက် သုံးမည်
+    API_KEYS = ["1ead03cecd516cf48c41b93c7b15116d"]
+
 current_key_index = 0
+print(f"🔑 Active API Key in use: {API_KEYS[0][:8]}***")
 
 # မြန်မာစံတော်ချိန် သတ်မှတ်ချက် (UTC+6:30)
 MMT_TZ = timezone(timedelta(hours=6, minutes=30))
 now_mmt = datetime.now(MMT_TZ)
 
-# ယနေ့ နေ့လယ် ၁၂:၀၀ PM မှ နောက်နေ့ နေ့လယ် ၁၂:၀၀ PM အထိ တိကျစွာ သတ်မှတ်ခြင်း
+# ယနေ့ နေ့လယ် ၁၂:၀၀ PM မှ နောက်နေ့ နေ့လယ် ၁၂:၀၀ PM အထိ (၂၄ နာရီ ဝင်းဒိုး)
 window_start = datetime(
     now_mmt.year, now_mmt.month, now_mmt.day, 12, 0, 0, tzinfo=MMT_TZ
 )
@@ -27,7 +38,7 @@ date_today_str = window_start.strftime("%Y-%m-%d")
 date_tomorrow_str = window_end.strftime("%Y-%m-%d")
 
 # ============================================================
-# 2. FULL LEAGUE WHITELIST (30 LEAGUES)
+# 2. FULL LEAGUE WHITELIST (TOP 5 LEAGUES + 25 NATIONS)
 # ============================================================
 ALLOWED_CONFIG = {
     "england": ["premier league", "championship"],
@@ -119,45 +130,29 @@ def is_allowed(league_name, country_name, home_name, away_name):
 
 
 # ============================================================
-# 3. API ENGINE WITH AUTO-ROTATION
+# 3. API FETCH ENGINE
 # ============================================================
-def get_current_key():
-    global current_key_index
-    return API_KEYS[current_key_index % len(API_KEYS)]
-
-
-def rotate_key():
-    global current_key_index
-    current_key_index = (current_key_index + 1) % len(API_KEYS)
-    print(f"🔄 Switched to API Key: {get_current_key()[:8]}***")
-
-
 def fetch_api(endpoint):
     url = f"https://v3.football.api-sports.io/{endpoint}"
-    for _ in range(len(API_KEYS)):
-        headers = {"x-apisports-key": get_current_key()}
-        try:
-            res = requests.get(url, headers=headers, timeout=15)
-            data = res.json()
-            errors = data.get("errors", {})
-            if errors and (
-                isinstance(errors, dict)
-                and any("requests" in str(v).lower() for v in errors.values())
-            ):
-                print("⚠️ Daily limit hit for key. Rotating...")
-                rotate_key()
-                continue
-            return data.get("response", [])
-        except Exception as e:
-            print(f"Error fetching {endpoint}: {e}")
-            rotate_key()
-    return []
+    active_key = API_KEYS[0]
+    headers = {"x-apisports-key": active_key}
+
+    try:
+        res = requests.get(url, headers=headers, timeout=20)
+        data = res.json()
+        errors = data.get("errors", {})
+        if errors:
+            print(f"⚠️ API Response Error: {errors}")
+            return []
+        return data.get("response", [])
+    except Exception as e:
+        print(f"Connection Error on {endpoint}: {e}")
+        return []
 
 
-def get_l5(team_id, venue):
-    fixtures = fetch_api(f"fixtures?team={team_id}&last=25")
+def get_l5(team_id, venue, team_name=""):
+    fixtures = fetch_api(f"fixtures?team={team_id}&last=15")
 
-    # ပြီးဆုံးသွားသော ပွဲများကိုသာ စစ်ထုတ်ခြင်း
     past_matches = [
         f
         for f in fixtures
@@ -172,11 +167,12 @@ def get_l5(team_id, venue):
         or (venue == "AWAY" and f["teams"]["away"]["id"] == team_id)
     ]
 
-    # Home/Away ၃ ပွဲ မပြည့်ပါက အသင်း၏ အရင်နှစ် အပါအဝင် နောက်ဆုံး ၅ ပွဲကို ယူမည်
     if len(selected) < 3:
         selected = past_matches[:5]
     else:
         selected = selected[:5]
+
+    print(f"   └─ {team_name} ({venue}): Found {len(selected)} matches.")
 
     if not selected:
         return {
@@ -244,9 +240,9 @@ print(
 )
 
 raw_1 = fetch_api(f"fixtures?date={date_today_str}&timezone=Asia/Yangon")
-time.sleep(6.5)
+time.sleep(7)
 raw_2 = fetch_api(f"fixtures?date={date_tomorrow_str}&timezone=Asia/Yangon")
-time.sleep(6.5)
+time.sleep(7)
 
 combined_fixtures = raw_1 + raw_2
 seen_ids = set()
@@ -258,12 +254,10 @@ for f in combined_fixtures:
         continue
     seen_ids.add(f_id)
 
-    # မကန်ရသေးသော (Not Started / TBD) ပွဲများကိုသာ သီးသန့် စစ်ထုတ်မည်
     status_short = f["fixture"]["status"]["short"]
     if status_short not in ["NS", "TBD"]:
         continue
 
-    # Kickoff အချိန်သည် နေ့လယ် ၁၂ မှ နောက်နေ့ နေ့လယ် ၁၂ အတွင်း ဖြစ်ရမည်
     f_time_str = f["fixture"]["date"]
     f_dt = datetime.fromisoformat(f_time_str)
 
@@ -276,9 +270,9 @@ for f in combined_fixtures:
         ):
             upcoming_fixtures.append(f)
 
-# API Quota ကာကွယ်ရန် ပွဲ ၅၀ အထိသာ အကဲဖြတ်မည်
-upcoming_fixtures = upcoming_fixtures[:50]
-print(f"Total Upcoming Fixtures Found: {len(upcoming_fixtures)}")
+# Single Key ဖြစ်၍ Quota ကာကွယ်ရန် ပွဲစဉ် ၃၀ အထိ ကန့်သတ်ထားသည်
+upcoming_fixtures = upcoming_fixtures[:30]
+print(f"Total Fixtures to Process: {len(upcoming_fixtures)}")
 
 evaluated_matches = []
 for idx, fix in enumerate(upcoming_fixtures):
@@ -291,13 +285,13 @@ for idx, fix in enumerate(upcoming_fixtures):
         f"Evaluating ({idx+1}/{len(upcoming_fixtures)}): {h_name} vs {a_name}..."
     )
 
-    h_stats = get_l5(h_id, "HOME")
-    time.sleep(6.5)
+    h_stats = get_l5(h_id, "HOME", h_name)
+    time.sleep(7)
 
-    a_stats = get_l5(a_id, "AWAY")
-    time.sleep(6.5)
+    a_stats = get_l5(a_id, "AWAY", a_name)
+    time.sleep(7)
 
-    # 5-Star Rule System
+    # 5-Star Target Rule
     is_over = (
         h_stats["over_pct"] >= 60
         and a_stats["over_pct"] >= 60
@@ -356,7 +350,7 @@ for idx, fix in enumerate(upcoming_fixtures):
         "a_stats": a_stats,
     })
 
-# 5 Star ပွဲများကို ထိပ်ဆုံးသို့ ဦးစားပေး စီစဉ်ခြင်း
+# 5 Star ပွဲများကို ထိပ်ဆုံးသို့ စီစဉ်ခြင်း
 evaluated_matches.sort(
     key=lambda x: (
         0
