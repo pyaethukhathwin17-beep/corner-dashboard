@@ -5,13 +5,19 @@ import re
 import time
 import requests
 
-# API KEY
+# ============================================================
+# API CONFIGURATION
+# ============================================================
 API_KEY = os.getenv(
-    "API_KEY", "9e86ddfbbddf3282c3a5729464788a46"
+    "API_KEY", "e243943e4a085a7f6c3c58bf85a8b3d3"
 ).strip().lower()
+
 MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
 today_str = datetime.now(MMT_TIMEZONE).strftime("%Y-%m-%d")
 
+# ============================================================
+# WHITELIST & BLACKLIST LEAGUES
+# ============================================================
 ALLOWED_CONFIG = {
     "england": ["premier league", "championship"],
     "spain": ["la liga", "segunda division", "laliga 2"],
@@ -111,11 +117,19 @@ def is_allowed(league_name, country_name, home_name, away_name):
     return False
 
 
+# ============================================================
+# API FETCH ENGINE
+# ============================================================
 def fetch_api(endpoint):
     url = f"https://v3.football.api-sports.io/{endpoint}"
     headers = {"x-apisports-key": API_KEY}
-    res = requests.get(url, headers=headers, timeout=15)
-    return res.json().get("response", [])
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        data = res.json()
+        return data.get("response", [])
+    except Exception as e:
+        print(f"Error fetching {endpoint}: {e}")
+        return []
 
 
 def get_l5(team_id, venue):
@@ -136,6 +150,7 @@ def get_l5(team_id, venue):
     gf_tot = 0
     ga_tot = 0
     scorelines = []
+
     for f in selected:
         gh = f["goals"]["home"] or 0
         ga = f["goals"]["away"] or 0
@@ -167,6 +182,9 @@ def get_l5(team_id, venue):
     }
 
 
+# ============================================================
+# MAIN EXECUTION
+# ============================================================
 print(f"[{today_str}] Fetching Today's Fixtures...")
 raw_fixtures = fetch_api(f"fixtures?date={today_str}&timezone=Asia/Yangon")
 time.sleep(6.5)
@@ -195,7 +213,7 @@ for idx, fix in enumerate(allowed_fixtures):
     )
 
     h_stats = get_l5(h_id, "HOME")
-    time.sleep(6.5)  # Safe Throttle (Under 10 req/min)
+    time.sleep(6.5)  # Safe Throttle
 
     a_stats = get_l5(a_id, "AWAY")
     time.sleep(6.5)  # Safe Throttle
@@ -203,7 +221,7 @@ for idx, fix in enumerate(allowed_fixtures):
     if not h_stats or not a_stats:
         continue
 
-    # Strict Criteria
+    # Strict Rules
     is_over = (
         h_stats["over_pct"] >= 60
         and a_stats["over_pct"] >= 60
@@ -260,7 +278,7 @@ for idx, fix in enumerate(allowed_fixtures):
         "a_stats": a_stats,
     })
 
-# Save to JSON
+# Save JSON Data
 with open("matches_data.json", "w", encoding="utf-8") as f:
     json.dump(
         {
