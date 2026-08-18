@@ -6,7 +6,7 @@ import time
 import requests
 
 # ============================================================
-# API CONFIGURATION
+# API CONFIGURATION (ANTI-BAN PROTECTED)
 # ============================================================
 API_KEY = os.getenv(
     "API_KEY", "e243943e4a085a7f6c3c58bf85a8b3d3"
@@ -16,7 +16,7 @@ MMT_TIMEZONE = timezone(timedelta(hours=6, minutes=30))
 today_str = datetime.now(MMT_TIMEZONE).strftime("%Y-%m-%d")
 
 # ============================================================
-# WHITELIST & BLACKLIST LEAGUES
+# LEAGUE WHITELIST & BLACKLIST
 # ============================================================
 ALLOWED_CONFIG = {
     "england": ["premier league", "championship"],
@@ -118,7 +118,7 @@ def is_allowed(league_name, country_name, home_name, away_name):
 
 
 # ============================================================
-# API FETCH ENGINE
+# API FETCH ENGINE (RATE-LIMITED)
 # ============================================================
 def fetch_api(endpoint):
     url = f"https://v3.football.api-sports.io/{endpoint}"
@@ -199,7 +199,10 @@ allowed_fixtures = [
         f["teams"]["away"]["name"],
     )
 ]
-print(f"Found {len(allowed_fixtures)} Whitelist Fixtures.")
+
+# Daily Quota Cap (အများဆုံး ၄၀ ပွဲသာ ကန့်သတ်ယူပြီး နေ့စဉ် ၁၀၀ Limit မပြည့်စေရန် ထိန်းခြင်း)
+allowed_fixtures = allowed_fixtures[:40]
+print(f"Processing {len(allowed_fixtures)} Whitelist Fixtures...")
 
 evaluated_matches = []
 for idx, fix in enumerate(allowed_fixtures):
@@ -209,19 +212,19 @@ for idx, fix in enumerate(allowed_fixtures):
     a_name = fix["teams"]["away"]["name"]
 
     print(
-        f"Processing ({idx+1}/{len(allowed_fixtures)}): {h_name} vs {a_name}..."
+        f"Evaluating ({idx+1}/{len(allowed_fixtures)}): {h_name} vs {a_name}..."
     )
 
     h_stats = get_l5(h_id, "HOME")
-    time.sleep(6.5)  # Safe Throttle
+    time.sleep(6.5)  # 6.5s delay to keep under 10 req/min
 
     a_stats = get_l5(a_id, "AWAY")
-    time.sleep(6.5)  # Safe Throttle
+    time.sleep(6.5)
 
     if not h_stats or not a_stats:
         continue
 
-    # Strict Rules
+    # Strict Criteria
     is_over = (
         h_stats["over_pct"] >= 60
         and a_stats["over_pct"] >= 60
@@ -278,7 +281,7 @@ for idx, fix in enumerate(allowed_fixtures):
         "a_stats": a_stats,
     })
 
-# Save JSON Data
+# Save to JSON
 with open("matches_data.json", "w", encoding="utf-8") as f:
     json.dump(
         {
@@ -291,4 +294,4 @@ with open("matches_data.json", "w", encoding="utf-8") as f:
         ensure_ascii=False,
     )
 
-print(f"Done! Saved {len(evaluated_matches)} matches to matches_data.json.")
+print(f"Done! Successfully generated matches_data.json with {len(evaluated_matches)} matches.")
