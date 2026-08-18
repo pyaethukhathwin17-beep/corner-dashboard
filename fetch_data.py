@@ -118,7 +118,7 @@ def is_allowed(league_name, country_name, home_name, away_name):
 
 
 # ============================================================
-# API FETCH ENGINE (RATE-LIMITED)
+# API FETCH ENGINE
 # ============================================================
 def fetch_api(endpoint):
     url = f"https://v3.football.api-sports.io/{endpoint}"
@@ -200,7 +200,7 @@ allowed_fixtures = [
     )
 ]
 
-# Daily Quota Cap (အများဆုံး ၄၀ ပွဲသာ ကန့်သတ်ယူပြီး နေ့စဉ် ၁၀၀ Limit မပြည့်စေရန် ထိန်းခြင်း)
+# Daily Quota Cap (အများဆုံး ၄၀ ပွဲထိသာ ကန့်သတ်ဆွဲယူမည်)
 allowed_fixtures = allowed_fixtures[:40]
 print(f"Processing {len(allowed_fixtures)} Whitelist Fixtures...")
 
@@ -216,7 +216,7 @@ for idx, fix in enumerate(allowed_fixtures):
     )
 
     h_stats = get_l5(h_id, "HOME")
-    time.sleep(6.5)  # 6.5s delay to keep under 10 req/min
+    time.sleep(6.5)
 
     a_stats = get_l5(a_id, "AWAY")
     time.sleep(6.5)
@@ -294,4 +294,4 @@ with open("matches_data.json", "w", encoding="utf-8") as f:
         ensure_ascii=False,
     )
 
-print(f"Done! Successfully generated matches_data.json with {len(evaluated_matches)} matches.")
+print(f"Done! Saved {len(evaluated_matches)} matches to matches_data.json.")
