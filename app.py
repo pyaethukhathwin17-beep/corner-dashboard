@@ -21,101 +21,103 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .stApp {
-        background-color: #0b0e14;
-        color: #e6edf3;
-    }
 
-    .header-card {
-        background: linear-gradient(
-            135deg,
-            #161b22 0%,
-            #21262d 100%
-        );
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-    }
+.stApp {
+    background-color: #0b0e14;
+    color: #e6edf3;
+}
 
-    .badge-over {
-        background-color: #00e676;
-        color: #042410;
-        padding: 6px 14px;
-        border-radius: 6px;
-        font-weight: 800;
-    }
+.header-card {
+    background: linear-gradient(
+        135deg,
+        #161b22 0%,
+        #21262d 100%
+    );
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
 
-    .badge-under {
-        background-color: #ff1744;
-        color: #ffffff;
-        padding: 6px 14px;
-        border-radius: 6px;
-        font-weight: 800;
-    }
+.badge-over {
+    background-color: #00e676;
+    color: #042410;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 800;
+}
 
-    .badge-neutral {
-        background-color: #30363d;
-        color: #8b949e;
-        padding: 6px 14px;
-        border-radius: 6px;
-        font-weight: 800;
-    }
+.badge-under {
+    background-color: #ff1744;
+    color: #ffffff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 800;
+}
 
-    .badge-unavailable {
-        background-color: #5a2028;
-        color: #ff7b72;
-        padding: 6px 14px;
-        border-radius: 6px;
-        font-weight: 800;
-    }
+.badge-neutral {
+    background-color: #30363d;
+    color: #8b949e;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 800;
+}
 
-    .stat-box {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 10px;
-        text-align: center;
-    }
+.badge-unavailable {
+    background-color: #5a2028;
+    color: #ff7b72;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 800;
+}
 
-    .stat-box-unavailable {
-        background-color: #161b22;
-        border: 1px solid #5a2028;
-        border-radius: 8px;
-        padding: 10px;
-        text-align: center;
-    }
+.stat-box {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
 
-    .score-box {
-        background-color: #0d1117;
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 8px 12px;
-        margin-bottom: 6px;
-    }
+.score-box {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+}
 
-    .small-note {
-        color: #8b949e;
-        font-size: 12px;
-    }
+.small-note {
+    color: #8b949e;
+    font-size: 12px;
+}
 
-    .data-warning {
-        background-color: #2d1b1e;
-        border: 1px solid #5a2028;
-        color: #ff7b72;
-        border-radius: 8px;
-        padding: 12px;
-        margin: 8px 0;
-    }
+.data-warning {
+    background-color: #2d1b1e;
+    border: 1px solid #5a2028;
+    color: #ff7b72;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
 
-    .data-success {
-        background-color: #12251a;
-        border: 1px solid #238636;
-        color: #56d364;
-        border-radius: 8px;
-        padding: 12px;
-        margin: 8px 0;
-    }
+.data-success {
+    background-color: #12251a;
+    border: 1px solid #238636;
+    color: #56d364;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.model-box {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -138,15 +140,14 @@ Pre-Match Intelligence Pro
 
 
 # ============================================================
-# 4. CHECK JSON FILE
+# 4. CHECK JSON
 # ============================================================
 
 if not os.path.exists("matches_data.json"):
 
     st.error(
         "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။ "
-        "ကျေးဇူးပြု၍ GitHub Actions မှ Workflow ကို "
-        "စတင် run ပေးပါခင်ဗျာ။"
+        "GitHub Actions မှ Fetch Workflow ကို run ပေးပါ။"
     )
 
     st.stop()
@@ -169,7 +170,7 @@ try:
 except json.JSONDecodeError as e:
 
     st.error(
-        f"❌ `matches_data.json` ဖိုင်ကို ဖတ်မရပါ။\n\n{e}"
+        f"❌ `matches_data.json` JSON format မှားနေပါတယ်။\n\n{e}"
     )
 
     st.stop()
@@ -184,7 +185,7 @@ except Exception as e:
 
 
 # ============================================================
-# 6. GET DATA
+# 6. GET MATCH DATA
 # ============================================================
 
 matches = data.get(
@@ -246,7 +247,7 @@ st.markdown(
 
 
 # ============================================================
-# 8. EMPTY MATCH CHECK
+# 8. EMPTY DATA
 # ============================================================
 
 if not matches:
@@ -263,86 +264,139 @@ if not matches:
 # ============================================================
 
 def safe_pct(value):
-    """
-    Percentage value ကို UI မှာ လုံခြုံစွာပြရန်။
-    None ဖြစ်ရင် N/A ပြမယ်။
-    """
 
     if value is None:
         return "N/A"
 
     try:
         return f"{float(value):.0f}%"
+
     except (TypeError, ValueError):
+
         return "N/A"
 
 
 def safe_number(value):
-    """
-    Normal number display.
-    None ဖြစ်ရင် N/A.
-    """
 
     if value is None:
         return "N/A"
 
     try:
         return f"{float(value):.2f}"
+
     except (TypeError, ValueError):
+
         return "N/A"
 
 
 def safe_probability(value):
-    """
-    Probability display.
-    """
 
     if value is None:
         return "N/A"
 
     try:
         return f"{float(value):.1f}%"
+
     except (TypeError, ValueError):
+
         return "N/A"
 
 
 def safe_edge(value):
-    """
-    Model edge display.
-    None ဖြစ်ရင် N/A.
-    """
 
     if value is None:
         return "N/A"
 
     try:
         return f"{float(value):+.1f}%"
+
     except (TypeError, ValueError):
+
         return "N/A"
 
 
-def get_reason(stats):
+# ============================================================
+# 10. IMPORTANT DATA AVAILABILITY CHECK
+# ============================================================
+
+def stats_available(stats):
+
     """
-    API data unavailable ဖြစ်ရင် reason ထုတ်ပြရန်။
+    IMPORTANT:
+
+    Fetcher version တချို့မှာ `available` field မပါနိုင်ပါတယ်။
+
+    ဒါကြောင့် available=True ဖြစ်မှ data ရှိတယ်လို့
+    မသတ်မှတ်တော့ပါဘူး။
+
+    Actual statistical fields ရှိမရှိကို စစ်ပါမယ်။
     """
 
     if not isinstance(stats, dict):
-        return "UNKNOWN"
+        return False
 
-    return stats.get(
-        "reason",
-        "UNKNOWN"
-    )
+    # Explicit unavailable states
+    reason = str(
+        stats.get(
+            "reason",
+            ""
+        )
+    ).upper()
+
+    status = str(
+        stats.get(
+            "status",
+            ""
+        )
+    ).upper()
+
+    if reason in [
+        "API_ERROR",
+        "API_DATA_UNAVAILABLE",
+        "INSUFFICIENT_L5_DATA",
+        "DATA_UNAVAILABLE",
+        "UNKNOWN",
+    ]:
+        return False
+
+    if status in [
+        "API_ERROR",
+        "API_DATA_UNAVAILABLE",
+        "INSUFFICIENT_L5_DATA",
+        "DATA_UNAVAILABLE",
+    ]:
+        return False
+
+    # New fetcher may provide explicit available=True
+    if stats.get("available") is True:
+        return True
+
+    # Actual L5 statistics are enough
+    required_fields = [
+        "over_pct",
+        "btts_pct",
+        "gf_avg",
+        "ga_avg",
+    ]
+
+    found = 0
+
+    for field in required_fields:
+
+        if stats.get(field) is not None:
+            found += 1
+
+    return found >= 3
 
 
 # ============================================================
-# 10. MATCH LOOP
+# 11. MATCH LOOP
 # ============================================================
 
 for m in matches:
 
     # --------------------------------------------------------
-    # Basic match data
+    # BASIC DATA
     # --------------------------------------------------------
 
     h_name = m.get(
@@ -392,23 +446,15 @@ for m in matches:
 
 
     # --------------------------------------------------------
-    # Data availability
+    # DATA AVAILABILITY
     # --------------------------------------------------------
 
-    home_available = (
-        isinstance(hs, dict)
-        and hs.get(
-            "available",
-            False
-        )
+    home_available = stats_available(
+        hs
     )
 
-    away_available = (
-        isinstance(as_, dict)
-        and as_.get(
-            "available",
-            False
-        )
+    away_available = stats_available(
+        as_
     )
 
     data_available = (
@@ -423,9 +469,9 @@ for m in matches:
 
     expander_title = (
         f"🏆 {l_name}"
-        f"  |  ⏰ {m.get('time', 'N/A')} MMT"
-        f"  |  ⚽ {h_name} vs {a_name}"
-        f"  [{sig}]"
+        f" | ⏰ {m.get('time', 'N/A')} MMT"
+        f" | ⚽ {h_name} vs {a_name}"
+        f" [{sig}]"
     )
 
 
@@ -450,7 +496,7 @@ for m in matches:
 
 
         # ----------------------------------------------------
-        # LEFT SIDE
+        # MATCH NAME
         # ----------------------------------------------------
 
         with c1:
@@ -467,7 +513,7 @@ for m in matches:
 
 
         # ----------------------------------------------------
-        # RIGHT SIDE
+        # SIGNAL
         # ----------------------------------------------------
 
         with c2:
@@ -521,47 +567,77 @@ for m in matches:
             # PROBABILITY / EDGE
             # =================================================
 
-            prob_display = safe_probability(
-                prob
-            )
-
-            edge_display = safe_edge(
-                edge
-            )
-
-
             st.write(
                 f"**Probability:** "
-                f"{prob_display}"
+                f"{safe_probability(prob)}"
                 f" | "
                 f"**Edge:** "
-                f"{edge_display}"
+                f"{safe_edge(edge)}"
                 f" vs 60% threshold"
             )
 
 
         # ====================================================
-        # DATA STATUS
+        # MODEL STATUS
         # ====================================================
 
         st.divider()
 
 
-        if not data_available:
+        if data_available:
 
-            home_reason = get_reason(
-                hs
+            st.markdown(
+                """
+                <div class="data-success">
+
+                ✅ <b>MODEL DATA AVAILABLE</b>
+
+                <br><br>
+
+                🏠 Home L5:
+                <b>AVAILABLE</b>
+
+                <br>
+
+                ✈️ Away L5:
+                <b>AVAILABLE</b>
+
+                <br><br>
+
+                Model Probability နှင့် Edge
+                ကို API မှရရှိသော L5 data
+                အပေါ်အခြေခံ၍ တွက်ချက်ထားပါသည်။
+
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-            away_reason = get_reason(
-                as_
+        else:
+
+            # Only show unavailable when actual stats are missing
+            home_reason = hs.get(
+                "reason",
+                hs.get(
+                    "status",
+                    "DATA_UNAVAILABLE"
+                )
+            )
+
+            away_reason = as_.get(
+                "reason",
+                as_.get(
+                    "status",
+                    "DATA_UNAVAILABLE"
+                )
             )
 
             st.markdown(
                 f"""
                 <div class="data-warning">
 
-                <b>⚠️ MODEL DATA UNAVAILABLE</b>
+                ⚠️ <b>MODEL DATA UNAVAILABLE</b>
+
                 <br><br>
 
                 🏠 Home Data:
@@ -572,27 +648,6 @@ for m in matches:
                 ✈️ Away Data:
                 <b>{away_reason}</b>
 
-                <br><br>
-
-                Model Probability နှင့် Edge ကို
-                <b>မတွက်ထားပါ</b>။
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        else:
-
-            st.markdown(
-                """
-                <div class="data-success">
-
-                ✅ Home L5 နှင့် Away L5 data
-                နှစ်ဖက်စလုံး ရရှိပြီး
-                Model တွက်ချက်ထားပါသည်။
-
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -600,7 +655,7 @@ for m in matches:
 
 
         # ====================================================
-        # STATS TITLE
+        # L5 TITLE
         # ====================================================
 
         st.markdown(
@@ -615,46 +670,30 @@ for m in matches:
 
 
         # ====================================================
-        # STAT VALUES
+        # OVER / BTTS
         # ====================================================
 
         home_over = safe_pct(
-            hs.get(
-                "over_pct"
-            )
+            hs.get("over_pct")
         )
 
         away_over = safe_pct(
-            as_.get(
-                "over_pct"
-            )
+            as_.get("over_pct")
         )
 
         home_btts = safe_pct(
-            hs.get(
-                "btts_pct"
-            )
+            hs.get("btts_pct")
         )
 
         away_btts = safe_pct(
-            as_.get(
-                "btts_pct"
-            )
+            as_.get("btts_pct")
         )
 
-
-        # ====================================================
-        # STATS COLUMNS
-        # ====================================================
 
         b1, b2, b3, b4 = st.columns(
             4
         )
 
-
-        # ----------------------------------------------------
-        # HOME OVER
-        # ----------------------------------------------------
 
         with b1:
 
@@ -662,28 +701,24 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    HOME L5 OVER
-                    </span>
+                <span class='small-note'>
+                HOME L5 OVER
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="
-                        color:#58a6ff;
-                        font-size:18px;
-                    ">
-                        {home_over}
-                    </b>
+                <b style="
+                    color:#58a6ff;
+                    font-size:18px;
+                ">
+                {home_over}
+                </b>
 
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-
-        # ----------------------------------------------------
-        # AWAY OVER
-        # ----------------------------------------------------
 
         with b2:
 
@@ -691,28 +726,24 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    AWAY L5 OVER
-                    </span>
+                <span class='small-note'>
+                AWAY L5 OVER
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="
-                        color:#58a6ff;
-                        font-size:18px;
-                    ">
-                        {away_over}
-                    </b>
+                <b style="
+                    color:#58a6ff;
+                    font-size:18px;
+                ">
+                {away_over}
+                </b>
 
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-
-        # ----------------------------------------------------
-        # HOME BTTS
-        # ----------------------------------------------------
 
         with b3:
 
@@ -720,28 +751,24 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    HOME L5 BTTS
-                    </span>
+                <span class='small-note'>
+                HOME L5 BTTS
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="
-                        color:#00e676;
-                        font-size:18px;
-                    ">
-                        {home_btts}
-                    </b>
+                <b style="
+                    color:#00e676;
+                    font-size:18px;
+                ">
+                {home_btts}
+                </b>
 
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-
-        # ----------------------------------------------------
-        # AWAY BTTS
-        # ----------------------------------------------------
 
         with b4:
 
@@ -749,18 +776,18 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    AWAY L5 BTTS
-                    </span>
+                <span class='small-note'>
+                AWAY L5 BTTS
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="
-                        color:#00e676;
-                        font-size:18px;
-                    ">
-                        {away_btts}
-                    </b>
+                <b style="
+                    color:#00e676;
+                    font-size:18px;
+                ">
+                {away_btts}
+                </b>
 
                 </div>
                 """,
@@ -769,11 +796,10 @@ for m in matches:
 
 
         # ====================================================
-        # GF / GA AVERAGES
+        # GOALS AVERAGES
         # ====================================================
 
         st.write("")
-
 
         st.markdown(
             "##### 📊 Goals Averages"
@@ -781,27 +807,19 @@ for m in matches:
 
 
         gf_home = safe_number(
-            hs.get(
-                "gf_avg"
-            )
+            hs.get("gf_avg")
         )
 
         ga_home = safe_number(
-            hs.get(
-                "ga_avg"
-            )
+            hs.get("ga_avg")
         )
 
         gf_away = safe_number(
-            as_.get(
-                "gf_avg"
-            )
+            as_.get("gf_avg")
         )
 
         ga_away = safe_number(
-            as_.get(
-                "ga_avg"
-            )
+            as_.get("ga_avg")
         )
 
 
@@ -816,15 +834,15 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    HOME GF AVG
-                    </span>
+                <span class='small-note'>
+                HOME GF AVG
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="font-size:18px;">
-                        {gf_home}
-                    </b>
+                <b style="font-size:18px;">
+                {gf_home}
+                </b>
 
                 </div>
                 """,
@@ -838,15 +856,15 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    HOME GA AVG
-                    </span>
+                <span class='small-note'>
+                HOME GA AVG
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="font-size:18px;">
-                        {ga_home}
-                    </b>
+                <b style="font-size:18px;">
+                {ga_home}
+                </b>
 
                 </div>
                 """,
@@ -860,15 +878,15 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    AWAY GF AVG
-                    </span>
+                <span class='small-note'>
+                AWAY GF AVG
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="font-size:18px;">
-                        {gf_away}
-                    </b>
+                <b style="font-size:18px;">
+                {gf_away}
+                </b>
 
                 </div>
                 """,
@@ -882,15 +900,15 @@ for m in matches:
                 f"""
                 <div class='stat-box'>
 
-                    <span class='small-note'>
-                    AWAY GA AVG
-                    </span>
+                <span class='small-note'>
+                AWAY GA AVG
+                </span>
 
-                    <br>
+                <br>
 
-                    <b style="font-size:18px;">
-                        {ga_away}
-                    </b>
+                <b style="font-size:18px;">
+                {ga_away}
+                </b>
 
                 </div>
                 """,
@@ -915,7 +933,7 @@ for m in matches:
 
 
         # ====================================================
-        # HOME RECENT MATCHES
+        # HOME MATCHES
         # ====================================================
 
         with sc1:
@@ -929,9 +947,18 @@ for m in matches:
                 []
             )
 
+
             if home_scores:
 
                 for sc in home_scores:
+
+                    total_goals = sc.get(
+                        "total",
+                        sc.get(
+                            "tot",
+                            "?"
+                        )
+                    )
 
                     st.markdown(
                         f"""
@@ -948,7 +975,7 @@ for m in matches:
                         </b>
 
                         (
-                        {sc.get('total', sc.get('tot', '?'))}
+                        {total_goals}
                         G
                         )
 
@@ -962,10 +989,8 @@ for m in matches:
                 st.markdown(
                     """
                     <div class='data-warning'>
-
                     ⚠️ Home recent-match data
                     မရရှိသေးပါ။
-
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -973,7 +998,7 @@ for m in matches:
 
 
         # ====================================================
-        # AWAY RECENT MATCHES
+        # AWAY MATCHES
         # ====================================================
 
         with sc2:
@@ -987,9 +1012,18 @@ for m in matches:
                 []
             )
 
+
             if away_scores:
 
                 for sc in away_scores:
+
+                    total_goals = sc.get(
+                        "total",
+                        sc.get(
+                            "tot",
+                            "?"
+                        )
+                    )
 
                     st.markdown(
                         f"""
@@ -1006,7 +1040,7 @@ for m in matches:
                         </b>
 
                         (
-                        {sc.get('total', sc.get('tot', '?'))}
+                        {total_goals}
                         G
                         )
 
@@ -1020,10 +1054,8 @@ for m in matches:
                 st.markdown(
                     """
                     <div class='data-warning'>
-
                     ⚠️ Away recent-match data
                     မရရှိသေးပါ။
-
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -1031,13 +1063,13 @@ for m in matches:
 
 
 # ============================================================
-# 11. FOOTER
+# 12. FOOTER
 # ============================================================
 
 st.divider()
 
 st.caption(
     "⚽ Pre-Match Over/Under Intelligence Pro "
-    "| API data availability is shown explicitly. "
-    "No fake 50% fallback values are used."
+    "| Real API L5 data is displayed explicitly. "
+    "| No fake 50% fallback values are used."
 )
