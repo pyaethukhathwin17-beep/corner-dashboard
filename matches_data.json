@@ -1,14 +1,17 @@
 {
-  "updated_at": "2026-08-19 10:01 AM MMT",
+  "updated_at": "2026-08-19 10:31 AM MMT",
+  "mode": "CHAMPIONS_LEAGUE_ONLY",
   "window_start": "2026-08-19T12:00:00+06:30",
   "window_end": "2026-08-20T12:00:00+06:30",
-  "window_range": "19 Aug 12:00 PM - 20 Aug 12:00 PM MMT",
-  "mode": "CHAMPIONS_LEAGUE_TEST",
-  "league_filter": "UEFA Champions League ONLY",
-  "history_method": "fixtures?team=ID&from=DATE&to=DATE",
-  "last_parameter_used": false,
-  "history_days": 120,
-  "max_games": 5,
+  "history_range": {
+    "from": "2026-04-21",
+    "to": "2026-08-18",
+    "days": 120,
+    "seasons": [
+      2025,
+      2026
+    ]
+  },
   "total_matches": 4,
   "matches": [
     {
@@ -23,31 +26,55 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
+      "over_prob": null,
+      "under_prob": null,
       "h_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       },
       "a_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       }
     },
     {
@@ -62,31 +89,55 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
+      "over_prob": null,
+      "under_prob": null,
       "h_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       },
       "a_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       }
     },
     {
@@ -101,31 +152,55 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
+      "over_prob": null,
+      "under_prob": null,
       "h_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       },
       "a_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       }
     },
     {
@@ -140,31 +215,55 @@
       "signal": "DATA_UNAVAILABLE",
       "prob": null,
       "edge": null,
+      "over_prob": null,
+      "under_prob": null,
       "h_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       },
       "a_stats": {
-        "available": false,
-        "reason": "API_ERROR",
-        "errors": {
-          "season": "The Season field is required."
-        },
+        "status": "INSUFFICIENT_L5_DATA",
+        "matches_found": 0,
         "over_pct": null,
         "under_pct": null,
         "btts_pct": null,
         "gf_avg": null,
         "ga_avg": null,
-        "scorelines": []
+        "scorelines": [],
+        "error": [
+          {
+            "season": 2025,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          },
+          {
+            "season": 2026,
+            "errors": {
+              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            }
+          }
+        ]
       }
     }
   ]
