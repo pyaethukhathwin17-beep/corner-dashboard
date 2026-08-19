@@ -1,4 +1,3 @@
-import json
 import os
 import time
 from datetime import datetime, timedelta, timezone
@@ -15,412 +14,123 @@ st.set_page_config(
     page_title="Football Prematch Scanner",
     page_icon="⚽",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# CONFIGURATION
+# CONFIG
 # ============================================================
 
 API_BASE = "https://v3.football.api-sports.io"
 
-CACHE_FILE = "team_history_cache.json"
-OUTPUT_FILE = "matches_data.json"
+# ------------------------------------------------------------
+# Myanmar Time
+# ------------------------------------------------------------
+
+MMT_TZ = timezone(timedelta(hours=6, minutes=30))
 
 # ------------------------------------------------------------
-# API SAFETY
+# Search window
+#
+# TODAY 12:00 PM MMT
+#       ->
+# TOMORROW 12:00 PM MMT
+# ------------------------------------------------------------
+
+SEARCH_START_HOUR = 12
+
+# ------------------------------------------------------------
+# Historical proxy
+#
+# Your Free API setup previously tested successfully with 2024.
+# This is intentionally kept as the historical proxy.
+# ------------------------------------------------------------
+
+HISTORY_SEASON = 2024
+
+# ------------------------------------------------------------
+# Maximum matches to analyse
+# ------------------------------------------------------------
+
+MAX_MATCHES_TO_ANALYZE = 5
+
+# ------------------------------------------------------------
+# API safety
+#
+# Stop this app after 80 requests in ONE RUN.
 # ------------------------------------------------------------
 
 MAX_API_CALLS_PER_RUN = 80
 
-# Stop before quota becomes dangerously low
-MIN_REMAINING_QUOTA = 15
+# If API itself reports very low remaining quota,
+# stop before making another request.
+MIN_REMAINING_QUOTA = 10
 
-# Delay between API requests
-API_DELAY_SECONDS = 1.5
+# API-Football free plan is currently 10 requests/minute.
+# We use a small delay between calls.
+API_DELAY_SECONDS = 1.0
 
-# Maximum matches shown/evaluated
-MAX_MATCHES = 50
-
-# History sample
-L5_MATCHES = 5
-
-# Historical proxy season
-#
-# IMPORTANT:
-# Change this only if your API plan provides another season.
-#
-# API-SPORTS free plan previously tested by us did not provide
-# current 2025/2026 team-history data reliably.
-HISTORY_SEASON = 2024
-
-# Myanmar Time
-MMT_TZ = timezone(timedelta(hours=6, minutes=30))
-
-
-# ============================================================
-# LEAGUE DATABASE
-# ============================================================
-#
-# API-FOOTBALL / API-SPORTS league IDs
-#
-# Main leagues from your requested list.
+# ------------------------------------------------------------
+# Request timeout
 # ------------------------------------------------------------
 
-LEAGUES = {
+REQUEST_TIMEOUT = 30
 
-    # ========================================================
-    # ARGENTINA
-    # ========================================================
 
-    128: {
-        "country": "Argentina",
-        "name": "Liga Profesional",
-        "group": "Main Leagues",
-    },
+# ============================================================
+# API KEY
+# ============================================================
 
-    # ========================================================
-    # AUSTRALIA
-    # ========================================================
+def load_api_keys():
 
-    188: {
-        "country": "Australia",
-        "name": "A-League",
-        "group": "Main Leagues",
-    },
+    # --------------------------------------------------------
+    # Streamlit Cloud secrets
+    # --------------------------------------------------------
 
-    # ========================================================
-    # AUSTRIA
-    # ========================================================
+    try:
+        secret_value = st.secrets.get("API_KEYS_POOL", "")
+    except Exception:
+        secret_value = ""
 
-    218: {
-        "country": "Austria",
-        "name": "Bundesliga",
-        "group": "Main Leagues",
-    },
+    # --------------------------------------------------------
+    # Environment variable
+    # --------------------------------------------------------
 
-    # ========================================================
-    # BELGIUM
-    # ========================================================
+    env_value = os.environ.get(
+        "API_KEYS_POOL",
+        ""
+    )
 
-    144: {
-        "country": "Belgium",
-        "name": "Pro League",
-        "group": "Main Leagues",
-    },
+    raw_keys = (
+        secret_value
+        or env_value
+    )
 
-    # ========================================================
-    # BRAZIL
-    # ========================================================
+    if not raw_keys:
+        st.error(
+            "❌ API_KEYS_POOL မတွေ့ပါ။ "
+            "Streamlit Secrets သို့မဟုတ် Environment Variable "
+            "ထဲတွင် API_KEYS_POOL ထည့်ပေးပါ။"
+        )
+        st.stop()
 
-    71: {
-        "country": "Brazil",
-        "name": "Serie A",
-        "group": "Main Leagues",
-    },
+    keys = [
+        key.strip()
+        for key in str(raw_keys).split(",")
+        if key.strip()
+    ]
 
-    # ========================================================
-    # CHILE
-    # ========================================================
+    if not keys:
+        st.error(
+            "❌ API key မတွေ့ပါ။"
+        )
+        st.stop()
 
-    265: {
-        "country": "Chile",
-        "name": "Primera División",
-        "group": "Main Leagues",
-    },
+    return keys
 
-    # ========================================================
-    # CHINA
-    # ========================================================
 
-    169: {
-        "country": "China",
-        "name": "Super League",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # COLOMBIA
-    # ========================================================
-
-    239: {
-        "country": "Colombia",
-        "name": "Primera A",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # CROATIA
-    # ========================================================
-
-    210: {
-        "country": "Croatia",
-        "name": "HNL",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # DENMARK
-    # ========================================================
-
-    119: {
-        "country": "Denmark",
-        "name": "Superliga",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # ECUADOR
-    # ========================================================
-
-    242: {
-        "country": "Ecuador",
-        "name": "Liga Pro",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # GREECE
-    # ========================================================
-
-    197: {
-        "country": "Greece",
-        "name": "Super League",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # JAPAN
-    # ========================================================
-
-    98: {
-        "country": "Japan",
-        "name": "J1 League",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # MEXICO
-    # ========================================================
-
-    262: {
-        "country": "Mexico",
-        "name": "Liga MX",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # NETHERLANDS
-    # ========================================================
-
-    88: {
-        "country": "Netherlands",
-        "name": "Eredivisie",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # NORWAY
-    # ========================================================
-
-    103: {
-        "country": "Norway",
-        "name": "Eliteserien",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # PERU
-    # ========================================================
-
-    281: {
-        "country": "Peru",
-        "name": "Liga 1",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # POLAND
-    # ========================================================
-
-    106: {
-        "country": "Poland",
-        "name": "Ekstraklasa",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # PORTUGAL
-    # ========================================================
-
-    94: {
-        "country": "Portugal",
-        "name": "Primeira Liga",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # SAUDI ARABIA
-    # ========================================================
-
-    307: {
-        "country": "Saudi Arabia",
-        "name": "Saudi Pro League",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # SCOTLAND
-    # ========================================================
-
-    179: {
-        "country": "Scotland",
-        "name": "Premiership",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # SWEDEN
-    # ========================================================
-
-    113: {
-        "country": "Sweden",
-        "name": "Allsvenskan",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # SWITZERLAND
-    # ========================================================
-
-    207: {
-        "country": "Switzerland",
-        "name": "Super League",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # TURKEY
-    # ========================================================
-
-    203: {
-        "country": "Turkey",
-        "name": "Süper Lig",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # USA
-    # ========================================================
-
-    253: {
-        "country": "USA",
-        "name": "MLS",
-        "group": "Main Leagues",
-    },
-
-    # ========================================================
-    # ENGLAND
-    # ========================================================
-
-    39: {
-        "country": "England",
-        "name": "Premier League",
-        "group": "Second-Tier Included",
-    },
-
-    40: {
-        "country": "England",
-        "name": "Championship",
-        "group": "Second-Tier Included",
-    },
-
-    # ========================================================
-    # SPAIN
-    # ========================================================
-
-    140: {
-        "country": "Spain",
-        "name": "LaLiga",
-        "group": "Second-Tier Included",
-    },
-
-    141: {
-        "country": "Spain",
-        "name": "LaLiga 2",
-        "group": "Second-Tier Included",
-    },
-
-    # ========================================================
-    # FRANCE
-    # ========================================================
-
-    61: {
-        "country": "France",
-        "name": "Ligue 1",
-        "group": "Second-Tier Included",
-    },
-
-    62: {
-        "country": "France",
-        "name": "Ligue 2",
-        "group": "Second-Tier Included",
-    },
-
-    # ========================================================
-    # GERMANY
-    # ========================================================
-
-    78: {
-        "country": "Germany",
-        "name": "Bundesliga",
-        "group": "Second-Tier Included",
-    },
-
-    79: {
-        "country": "Germany",
-        "name": "2. Bundesliga",
-        "group": "Second-Tier Included",
-    },
-
-    # ========================================================
-    # ITALY
-    # ========================================================
-
-    135: {
-        "country": "Italy",
-        "name": "Serie A",
-        "group": "Second-Tier Included",
-    },
-
-    136: {
-        "country": "Italy",
-        "name": "Serie B",
-        "group": "Second-Tier Included",
-    },
-
-    # ========================================================
-    # UEFA CLUB COMPETITIONS
-    # ========================================================
-
-    2: {
-        "country": "World",
-        "name": "UEFA Champions League",
-        "group": "European Cups",
-    },
-
-    3: {
-        "country": "World",
-        "name": "UEFA Europa League",
-        "group": "European Cups",
-    },
-
-    848: {
-        "country": "World",
-        "name": "UEFA Europa Conference League",
-        "group": "European Cups",
-    },
-}
+API_KEYS = load_api_keys()
 
 
 # ============================================================
@@ -436,62 +146,21 @@ if "remaining_quota" not in st.session_state:
 if "current_key_index" not in st.session_state:
     st.session_state.current_key_index = 0
 
-if "stop_reason" not in st.session_state:
-    st.session_state.stop_reason = ""
+if "league_catalog" not in st.session_state:
+    st.session_state.league_catalog = None
 
-if "history_cache" not in st.session_state:
-    st.session_state.history_cache = None
+if "last_scan_results" not in st.session_state:
+    st.session_state.last_scan_results = []
 
-
-# ============================================================
-# API KEY
-# ============================================================
-
-raw_keys = os.environ.get(
-    "API_KEYS_POOL",
-    ""
-).strip()
-
-if not raw_keys:
-
-    st.error(
-        """
-        ❌ API_KEYS_POOL မတွေ့ပါ။
-
-        Streamlit Cloud → Settings → Secrets
-
-        မှာ API_KEYS_POOL ထည့်ပါ။
-
-        ဥပမာ:
-
-        API_KEYS_POOL="YOUR_API_KEY"
-        """
-    )
-
-    st.stop()
-
-
-API_KEYS = [
-    key.strip()
-    for key in raw_keys.split(",")
-    if key.strip()
-]
-
-
-if not API_KEYS:
-
-    st.error(
-        "❌ API_KEYS_POOL ထဲမှာ valid API key မရှိပါ။"
-    )
-
-    st.stop()
+if "scan_message" not in st.session_state:
+    st.session_state.scan_message = ""
 
 
 # ============================================================
-# ACTIVE API KEY
+# API HELPERS
 # ============================================================
 
-def get_active_key():
+def get_current_api_key():
 
     index = st.session_state.current_key_index
 
@@ -502,85 +171,24 @@ def get_active_key():
     return API_KEYS[index]
 
 
-# ============================================================
-# LOAD CACHE
-# ============================================================
+def rotate_api_key():
 
-def load_cache():
+    if len(API_KEYS) <= 1:
+        return
 
-    if st.session_state.history_cache is not None:
-        return st.session_state.history_cache
+    st.session_state.current_key_index = (
+        st.session_state.current_key_index + 1
+    ) % len(API_KEYS)
 
-    if not os.path.exists(CACHE_FILE):
-        st.session_state.history_cache = {}
-        return {}
-
-    try:
-
-        with open(
-            CACHE_FILE,
-            "r",
-            encoding="utf-8",
-        ) as file:
-
-            data = json.load(file)
-
-        if isinstance(data, dict):
-
-            st.session_state.history_cache = data
-
-            return data
-
-    except Exception:
-        pass
-
-    st.session_state.history_cache = {}
-
-    return {}
-
-
-# ============================================================
-# SAVE CACHE
-# ============================================================
-
-def save_cache(cache):
-
-    st.session_state.history_cache = cache
-
-    try:
-
-        with open(
-            CACHE_FILE,
-            "w",
-            encoding="utf-8",
-        ) as file:
-
-            json.dump(
-                cache,
-                file,
-                indent=2,
-                ensure_ascii=False,
-            )
-
-    except Exception:
-        pass
-
-
-history_cache = load_cache()
-
-
-# ============================================================
-# API REQUEST
-# ============================================================
 
 def api_request(
     endpoint,
     params=None,
-    purpose="",
+    purpose=""
 ):
 
     # --------------------------------------------------------
-    # HARD 80 REQUEST LIMIT
+    # LOCAL HARD LIMIT
     # --------------------------------------------------------
 
     if (
@@ -588,9 +196,10 @@ def api_request(
         >= MAX_API_CALLS_PER_RUN
     ):
 
-        st.session_state.stop_reason = (
-            f"API request limit reached "
-            f"({MAX_API_CALLS_PER_RUN})."
+        st.error(
+            "🛑 API SAFETY STOP\n\n"
+            f"ဒီ run အတွင်း API request "
+            f"{MAX_API_CALLS_PER_RUN} ခု ပြည့်သွားပါပြီ။"
         )
 
         return None
@@ -600,18 +209,16 @@ def api_request(
     # QUOTA SAFETY
     # --------------------------------------------------------
 
-    remaining = (
-        st.session_state.remaining_quota
-    )
+    remaining = st.session_state.remaining_quota
 
     if (
         remaining is not None
         and remaining <= MIN_REMAINING_QUOTA
     ):
 
-        st.session_state.stop_reason = (
-            f"API quota safety stop. "
-            f"Remaining quota = {remaining}."
+        st.warning(
+            "🛑 API quota နည်းနေသောကြောင့် "
+            "request ထပ်မခေါ်တော့ပါ။"
         )
 
         return None
@@ -620,8 +227,17 @@ def api_request(
     url = f"{API_BASE}/{endpoint}"
 
     headers = {
-        "x-apisports-key": get_active_key()
+        "x-apisports-key": get_current_api_key(),
+        "Accept": "application/json",
     }
+
+
+    # --------------------------------------------------------
+    # Small delay
+    # --------------------------------------------------------
+
+    if st.session_state.api_calls > 0:
+        time.sleep(API_DELAY_SECONDS)
 
 
     st.session_state.api_calls += 1
@@ -632,294 +248,212 @@ def api_request(
         response = requests.get(
             url,
             headers=headers,
-            params=params,
-            timeout=30,
+            params=params or {},
+            timeout=REQUEST_TIMEOUT,
         )
 
+    except requests.RequestException as exc:
 
-        # ----------------------------------------------------
-        # READ QUOTA
-        # ----------------------------------------------------
-
-        quota_headers = [
-            "x-ratelimit-requests-remaining",
-            "X-RateLimit-Requests-Remaining",
-        ]
-
-        for header in quota_headers:
-
-            value = response.headers.get(
-                header
-            )
-
-            if value is not None:
-
-                try:
-
-                    st.session_state.remaining_quota = int(
-                        value
-                    )
-
-                except ValueError:
-                    pass
-
-                break
-
-
-        # ----------------------------------------------------
-        # HTTP ERROR
-        # ----------------------------------------------------
-
-        if response.status_code != 200:
-
-            # Try next key on authentication errors
-            if response.status_code in [401, 403]:
-
-                if (
-                    len(API_KEYS) > 1
-                    and
-                    st.session_state.current_key_index
-                    < len(API_KEYS) - 1
-                ):
-
-                    st.session_state.current_key_index += 1
-
-            if response.status_code == 429:
-
-                st.session_state.stop_reason = (
-                    "API rate limit reached."
-                )
-
-            return None
-
-
-        # ----------------------------------------------------
-        # JSON
-        # ----------------------------------------------------
-
-        try:
-
-            data = response.json()
-
-        except Exception:
-
-            return None
-
-
-        errors = data.get(
-            "errors",
-            {},
+        st.warning(
+            f"⚠️ API connection error: {exc}"
         )
-
-        if errors:
-
-            return None
-
-
-        return data
-
-
-    except requests.RequestException:
 
         return None
 
 
+    # --------------------------------------------------------
+    # QUOTA HEADERS
+    # --------------------------------------------------------
+
+    remaining_headers = [
+        "x-ratelimit-requests-remaining",
+        "X-RateLimit-Requests-Remaining",
+    ]
+
+    for header_name in remaining_headers:
+
+        value = response.headers.get(
+            header_name
+        )
+
+        if value is not None:
+
+            try:
+                st.session_state.remaining_quota = int(
+                    value
+                )
+
+            except ValueError:
+                pass
+
+            break
+
+
+    # --------------------------------------------------------
+    # 401 / 403
+    # --------------------------------------------------------
+
+    if response.status_code in [401, 403]:
+
+        if len(API_KEYS) > 1:
+
+            rotate_api_key()
+
+            st.warning(
+                "⚠️ API key permission error ဖြစ်နေသဖြင့် "
+                "နောက် API key သို့ ပြောင်းပါမည်။"
+            )
+
+        else:
+
+            st.error(
+                "❌ API key authentication / permission error."
+            )
+
+        return None
+
+
+    # --------------------------------------------------------
+    # 429
+    # --------------------------------------------------------
+
+    if response.status_code == 429:
+
+        st.warning(
+            "🛑 API rate limit (429) ရရှိပါသည်။ "
+            "Request များကို ရပ်ထားပါသည်။"
+        )
+
+        return None
+
+
+    # --------------------------------------------------------
+    # Other HTTP errors
+    # --------------------------------------------------------
+
+    if response.status_code != 200:
+
+        st.warning(
+            f"❌ API HTTP error: "
+            f"{response.status_code}"
+        )
+
+        return None
+
+
+    # --------------------------------------------------------
+    # JSON
+    # --------------------------------------------------------
+
+    try:
+
+        data = response.json()
+
+    except Exception:
+
+        st.warning(
+            "❌ API response သည် JSON မဟုတ်ပါ။"
+        )
+
+        return None
+
+
+    # --------------------------------------------------------
+    # API errors
+    # --------------------------------------------------------
+
+    errors = data.get(
+        "errors",
+        {}
+    )
+
+    if errors:
+
+        st.warning(
+            f"❌ API error: {errors}"
+        )
+
+        return None
+
+
+    return data
+
+
 # ============================================================
-# MMT SEARCH WINDOW
-# ============================================================
-#
-# IMPORTANT:
-#
-# Every day:
-#
-# TODAY 12:00 PM MMT
-#       ↓
-# TOMORROW 12:00 PM MMT
-#
-# This is NOT midnight-to-midnight.
+# TIME WINDOW
 # ============================================================
 
-def get_mmt_search_window():
+def get_search_window():
 
-    now = datetime.now(
+    now_mmt = datetime.now(
         MMT_TZ
     )
 
-    today_noon = datetime(
-        now.year,
-        now.month,
-        now.day,
-        12,
+    start = datetime(
+        now_mmt.year,
+        now_mmt.month,
+        now_mmt.day,
+        SEARCH_START_HOUR,
         0,
         0,
         tzinfo=MMT_TZ,
     )
 
-    # Before 12 PM:
+    # --------------------------------------------------------
+    # IMPORTANT:
     #
-    # The active window started yesterday 12 PM.
+    # If current time is already after today's 12 PM,
+    # search starts TODAY 12 PM.
     #
-    if now < today_noon:
+    # If current time is before today's 12 PM,
+    # search still starts TODAY 12 PM.
+    #
+    # This is intentionally fixed to:
+    # TODAY 12:00 PM -> TOMORROW 12:00 PM
+    # --------------------------------------------------------
 
-        window_start = (
-            today_noon
-            - timedelta(days=1)
-        )
-
-    else:
-
-        window_start = today_noon
-
-
-    window_end = (
-        window_start
-        + timedelta(days=1)
+    end = start + timedelta(
+        days=1
     )
 
-
-    return (
-        now,
-        window_start,
-        window_end,
-    )
-
-
-now_mmt, window_start, window_end = (
-    get_mmt_search_window()
-)
+    return start, end
 
 
 # ============================================================
-# DATE STRINGS
+# LEAGUE CATALOG
 # ============================================================
 
-search_dates = [
-    window_start.strftime("%Y-%m-%d"),
-    window_end.strftime("%Y-%m-%d"),
-]
-
-
-# ============================================================
-# FETCH DAILY FIXTURES
-# ============================================================
-
-def fetch_daily_fixtures(
-    date_string
-):
+def fetch_league_catalog():
 
     data = api_request(
-        "fixtures",
+        "leagues",
         params={
-            "date": date_string,
-            "timezone": "Asia/Yangon",
+            "season": 2026,
         },
-        purpose=(
-            f"Fixtures for "
-            f"{date_string} MMT"
-        ),
+        purpose="Load 2026 league catalogue",
     )
 
     if data is None:
         return []
 
-    return data.get(
+    response = data.get(
         "response",
-        [],
+        []
     )
 
-
-# ============================================================
-# FETCH FIXTURES FOR WINDOW
-# ============================================================
-
-def fetch_window_fixtures():
-
-    all_fixtures = []
-
-    seen_ids = set()
-
-
-    for date_string in search_dates:
-
-        fixtures = fetch_daily_fixtures(
-            date_string
-        )
-
-
-        for fixture in fixtures:
-
-            fixture_id = (
-                fixture
-                .get("fixture", {})
-                .get("id")
-            )
-
-            if not fixture_id:
-                continue
-
-            if fixture_id in seen_ids:
-                continue
-
-            seen_ids.add(
-                fixture_id
-            )
-
-            all_fixtures.append(
-                fixture
-            )
-
-
-        # Delay only if another request is needed
-        if date_string != search_dates[-1]:
-
-            if (
-                st.session_state.api_calls
-                < MAX_API_CALLS_PER_RUN
-            ):
-
-                time.sleep(
-                    API_DELAY_SECONDS
-                )
-
-
-    return all_fixtures
-
-
-# ============================================================
-# FILTER FIXTURES
-# ============================================================
-
-def filter_fixtures(
-    fixtures,
-    selected_league_ids,
-):
-
-    selected = []
+    catalog = []
 
     seen = set()
 
+    for item in response:
 
-    for fixture in fixtures:
-
-        fixture_id = (
-            fixture
-            .get("fixture", {})
-            .get("id")
-        )
-
-        if not fixture_id:
-            continue
-
-        if fixture_id in seen:
-            continue
-
-        seen.add(
-            fixture_id
-        )
-
-
-        league = fixture.get(
+        league = item.get(
             "league",
+            {}
+        )
+
+        country = item.get(
+            "country",
             {}
         )
 
@@ -927,74 +461,302 @@ def filter_fixtures(
             "id"
         )
 
+        league_name = league.get(
+            "name"
+        )
 
-        # League filter
+        league_type = league.get(
+            "type",
+            ""
+        )
+
+        country_name = country.get(
+            "name",
+            "Unknown"
+        )
+
+        if not league_id:
+            continue
+
+        if not league_name:
+            continue
+
+        unique_key = (
+            league_id,
+            league_name,
+            country_name,
+        )
+
+        if unique_key in seen:
+            continue
+
+        seen.add(unique_key)
+
+        catalog.append(
+            {
+                "id": int(league_id),
+                "name": str(league_name),
+                "country": str(country_name),
+                "type": str(league_type),
+            }
+        )
+
+    catalog.sort(
+        key=lambda x: (
+            x["country"].lower(),
+            x["name"].lower(),
+        )
+    )
+
+    return catalog
+
+
+def ensure_league_catalog():
+
+    if (
+        st.session_state.league_catalog
+        is not None
+    ):
+        return st.session_state.league_catalog
+
+    with st.spinner(
+        "🏆 League list ကို API မှ ရယူနေပါသည်..."
+    ):
+
+        catalog = fetch_league_catalog()
+
+    if not catalog:
+
+        return []
+
+    st.session_state.league_catalog = catalog
+
+    return catalog
+
+
+# ============================================================
+# LEAGUE DISPLAY HELPERS
+# ============================================================
+
+def league_label(item):
+
+    return (
+        f"{item['name']} "
+        f"— {item['country']} "
+        f"[{item['type']}]"
+    )
+
+
+def country_options(catalog):
+
+    countries = sorted(
+        {
+            item["country"]
+            for item in catalog
+            if item.get("country")
+        },
+        key=lambda x: x.lower(),
+    )
+
+    return countries
+
+
+# ============================================================
+# FIXTURE FETCH
+# ============================================================
+
+def fetch_fixtures_for_date(
+    date_string
+):
+
+    return api_request(
+        "fixtures",
+        params={
+            "date": date_string,
+            "timezone": "Asia/Yangon",
+        },
+        purpose=(
+            f"Fixtures for {date_string} "
+            f"MMT"
+        ),
+    )
+
+
+def fixture_is_in_window(
+    fixture,
+    start,
+    end
+):
+
+    fixture_data = fixture.get(
+        "fixture",
+        {}
+    )
+
+    status = fixture_data.get(
+        "status",
+        {}
+    ).get(
+        "short"
+    )
+
+    if status not in [
+        "NS",
+        "TBD",
+    ]:
+        return False
+
+
+    fixture_date = fixture_data.get(
+        "date"
+    )
+
+    if not fixture_date:
+        return False
+
+
+    try:
+
+        dt = datetime.fromisoformat(
+            fixture_date
+        )
+
+    except Exception:
+
+        return False
+
+
+    if dt.tzinfo is None:
+
+        dt = dt.replace(
+            tzinfo=timezone.utc
+        )
+
+
+    dt_mmt = dt.astimezone(
+        MMT_TZ
+    )
+
+
+    return (
+        start
+        <= dt_mmt
+        <= end
+    )
+
+
+def collect_selected_fixtures(
+    selected_league_ids,
+    start,
+    end
+):
+
+    date_1 = start.strftime(
+        "%Y-%m-%d"
+    )
+
+    date_2 = end.strftime(
+        "%Y-%m-%d"
+    )
+
+
+    raw_fixtures = []
+
+
+    # --------------------------------------------------------
+    # TODAY
+    # --------------------------------------------------------
+
+    data_today = fetch_fixtures_for_date(
+        date_1
+    )
+
+    if data_today:
+
+        raw_fixtures.extend(
+            data_today.get(
+                "response",
+                []
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # TOMORROW
+    # --------------------------------------------------------
+
+    if date_2 != date_1:
+
+        data_tomorrow = (
+            fetch_fixtures_for_date(
+                date_2
+            )
+        )
+
+        if data_tomorrow:
+
+            raw_fixtures.extend(
+                data_tomorrow.get(
+                    "response",
+                    []
+                )
+            )
+
+
+    # --------------------------------------------------------
+    # LOCAL FILTER
+    #
+    # Important:
+    # We DO NOT call the API separately for every league.
+    #
+    # We fetch date fixtures and filter league IDs locally.
+    # This saves a lot of API calls.
+    # --------------------------------------------------------
+
+    selected = []
+
+    seen_ids = set()
+
+    for fixture in raw_fixtures:
+
+        fixture_data = fixture.get(
+            "fixture",
+            {}
+        )
+
+        league_data = fixture.get(
+            "league",
+            {}
+        )
+
+        fixture_id = fixture_data.get(
+            "id"
+        )
+
+        league_id = league_data.get(
+            "id"
+        )
+
+        if not fixture_id:
+            continue
+
+        if fixture_id in seen_ids:
+            continue
+
+        seen_ids.add(
+            fixture_id
+        )
+
+
         if league_id not in selected_league_ids:
             continue
 
 
-        status = (
-            fixture
-            .get("fixture", {})
-            .get("status", {})
-            .get("short")
-        )
-
-
-        # Prematch only
-        if status not in [
-            "NS",
-            "TBD",
-            "PST",
-        ]:
-
-            continue
-
-
-        fixture_date = (
-            fixture
-            .get("fixture", {})
-            .get("date")
-        )
-
-        if not fixture_date:
-            continue
-
-
-        try:
-
-            fixture_dt = datetime.fromisoformat(
-                fixture_date
-            )
-
-        except Exception:
-
-            continue
-
-
-        if fixture_dt.tzinfo is None:
-
-            fixture_dt = fixture_dt.replace(
-                tzinfo=timezone.utc
-            )
-
-
-        # Convert fixture to MMT
-        fixture_mmt = fixture_dt.astimezone(
-            MMT_TZ
-        )
-
-
-        # ----------------------------------------------------
-        # EXACT MMT WINDOW
-        # ----------------------------------------------------
-
-        if not (
-            window_start
-            <= fixture_mmt
-            < window_end
+        if not fixture_is_in_window(
+            fixture,
+            start,
+            end
         ):
-
             continue
 
 
@@ -1027,12 +789,13 @@ def filter_fixtures(
         )
 
 
-    # Sort by MMT kickoff time
     selected.sort(
-        key=lambda x: (
-            x
-            .get("fixture", {})
-            .get("date", "")
+        key=lambda x: x.get(
+            "fixture",
+            {}
+        ).get(
+            "date",
+            ""
         )
     )
 
@@ -1047,72 +810,68 @@ def filter_fixtures(
 def get_team_history(
     team_id,
     team_name,
-    venue,
+    venue
 ):
 
     cache_key = (
         f"{team_id}_"
+        f"{venue}_"
         f"{HISTORY_SEASON}"
     )
 
 
     # --------------------------------------------------------
-    # CACHE
+    # SESSION CACHE
     # --------------------------------------------------------
 
-    if cache_key in history_cache:
+    cache = st.session_state.get(
+        "history_cache",
+        {}
+    )
 
-        fixtures = history_cache[
+    if cache_key in cache:
+
+        return cache[
             cache_key
         ]
 
-    else:
-
-        data = api_request(
-            "fixtures",
-            params={
-                "team": team_id,
-                "season": HISTORY_SEASON,
-            },
-            purpose=(
-                f"{team_name} "
-                f"history {HISTORY_SEASON}"
-            ),
-        )
-
-
-        if data is None:
-
-            return {
-                "status": "API_ERROR",
-                "sample_size": 0,
-                "matches": [],
-                "over_pct": None,
-                "under_pct": None,
-                "btts_pct": None,
-                "gf_avg": None,
-                "ga_avg": None,
-            }
-
-
-        fixtures = data.get(
-            "response",
-            []
-        )
-
-
-        history_cache[
-            cache_key
-        ] = fixtures
-
-        save_cache(
-            history_cache
-        )
-
 
     # --------------------------------------------------------
-    # FINISHED MATCHES
+    # API
     # --------------------------------------------------------
+
+    data = api_request(
+        "fixtures",
+        params={
+            "team": team_id,
+            "season": HISTORY_SEASON,
+        },
+        purpose=(
+            f"{team_name} "
+            f"{venue} L5 history"
+        ),
+    )
+
+
+    if data is None:
+
+        return {
+            "status": "API_ERROR",
+            "sample_size": 0,
+            "over_pct": None,
+            "under_pct": None,
+            "btts_pct": None,
+            "gf_avg": None,
+            "ga_avg": None,
+            "scorelines": [],
+        }
+
+
+    fixtures = data.get(
+        "response",
+        []
+    )
+
 
     finished = []
 
@@ -1132,26 +891,23 @@ def get_team_history(
             "AET",
             "PEN",
         ]:
-
             continue
 
 
-        home = fixture.get(
+        teams = fixture.get(
             "teams",
             {}
-        ).get(
+        )
+
+        home = teams.get(
             "home",
             {}
         )
 
-        away = fixture.get(
-            "teams",
-            {}
-        ).get(
+        away = teams.get(
             "away",
             {}
         )
-
 
         goals = fixture.get(
             "goals",
@@ -1167,7 +923,6 @@ def get_team_history(
             "id"
         )
 
-
         home_goals = goals.get(
             "home"
         )
@@ -1177,16 +932,15 @@ def get_team_history(
         )
 
 
-        if (
-            home_goals is None
-            or away_goals is None
-        ):
+        if home_goals is None:
+            continue
 
+        if away_goals is None:
             continue
 
 
         # ----------------------------------------------------
-        # HOME / AWAY FILTER
+        # VENUE FILTER
         # ----------------------------------------------------
 
         if venue == "HOME":
@@ -1202,20 +956,24 @@ def get_team_history(
 
         finished.append(
             {
-                "date": (
-                    fixture
-                    .get("fixture", {})
-                    .get("date", "")
+                "date": fixture
+                .get(
+                    "fixture",
+                    {}
+                )
+                .get(
+                    "date",
+                    ""
                 ),
 
                 "home": home.get(
                     "name",
-                    "Unknown",
+                    "Unknown"
                 ),
 
                 "away": away.get(
                     "name",
-                    "Unknown",
+                    "Unknown"
                 ),
 
                 "home_id": home_id,
@@ -1233,34 +991,39 @@ def get_team_history(
         )
 
 
-    # Newest first
     finished.sort(
         key=lambda x: x["date"],
-        reverse=True,
+        reverse=True
     )
 
 
-    selected = finished[
-        :L5_MATCHES
-    ]
+    selected = finished[:5]
 
 
-    # --------------------------------------------------------
-    # EMPTY DATA
-    # --------------------------------------------------------
+    if len(selected) < 5:
 
-    if not selected:
-
-        return {
-            "status": "INSUFFICIENT_L5_DATA",
-            "sample_size": 0,
-            "matches": [],
+        result = {
+            "status": (
+                "INSUFFICIENT_L5_DATA"
+            ),
+            "sample_size": len(
+                selected
+            ),
             "over_pct": None,
             "under_pct": None,
             "btts_pct": None,
             "gf_avg": None,
             "ga_avg": None,
+            "scorelines": [],
         }
+
+        cache[
+            cache_key
+        ] = result
+
+        st.session_state.history_cache = cache
+
+        return result
 
 
     # --------------------------------------------------------
@@ -1268,11 +1031,9 @@ def get_team_history(
     # --------------------------------------------------------
 
     over_count = 0
-
     btts_count = 0
 
     gf_total = 0
-
     ga_total = 0
 
     scorelines = []
@@ -1299,7 +1060,6 @@ def get_team_history(
             btts_count += 1
 
 
-        # Team GF / GA
         if (
             match["home_id"]
             == team_id
@@ -1356,16 +1116,12 @@ def get_team_history(
     )
 
 
-    return {
+    result = {
 
-        "status": (
-            "PROXY_2024_25"
-            if count >= 5
-            else "PARTIAL_PROXY_2024_25"
-        ),
+        "status": "PROXY_2024_25",
 
         "data_source": (
-            "API-SPORTS 2024 season "
+            "API-SPORTS 2024 "
             "historical proxy"
         ),
 
@@ -1375,7 +1131,7 @@ def get_team_history(
             over_count
             / count
             * 100,
-            1,
+            1
         ),
 
         "under_pct": round(
@@ -1385,107 +1141,87 @@ def get_team_history(
             )
             / count
             * 100,
-            1,
+            1
         ),
 
         "btts_pct": round(
             btts_count
             / count
             * 100,
-            1,
+            1
         ),
 
         "gf_avg": round(
             gf_total
             / count,
-            2,
+            2
         ),
 
         "ga_avg": round(
             ga_total
             / count,
-            2,
+            2
         ),
 
         "scorelines": scorelines,
     }
 
 
+    cache[
+        cache_key
+    ] = result
+
+    st.session_state.history_cache = cache
+
+
+    return result
+
+
 # ============================================================
 # MODEL
-# ============================================================
-#
-# NO xG
-#
-# OVER:
-#
-# Home L5 O2.5 >= 60%
-# Away L5 O2.5 >= 60%
-# Home GF > 1.5
-# Home GA > 1.0
-# Away GF > 1.0
-# Away GA > 1.0
-# Home BTTS >= 60%
-# Away BTTS >= 60%
-# Model edge >= 5%
-#
-# UNDER:
-#
-# Home L5 U2.5 >= 60%
-# Away L5 U2.5 >= 60%
-# Home GF < 1.3
-# Home GA < 1.0
-# Away GF < 1.1
-# Away GA < 1.2
-# Home BTTS < 50%
-# Away BTTS < 50%
-# Model edge >= 5%
 # ============================================================
 
 def calculate_model(
     home_stats,
-    away_stats,
+    away_stats
 ):
 
-    valid_statuses = [
+    required_status = [
         "PROXY_2024_25",
-        "PARTIAL_PROXY_2024_25",
     ]
 
 
     if (
         home_stats.get(
             "status"
-        )
-        not in valid_statuses
+        ) not in required_status
         or
         away_stats.get(
             "status"
-        )
-        not in valid_statuses
+        ) not in required_status
     ):
 
         return {
             "signal": "DATA_UNAVAILABLE",
             "probability": None,
             "edge": None,
+            "over_checks": {},
+            "under_checks": {},
             "model_status": (
                 "INSUFFICIENT_DATA"
             ),
-            "over_checks": {},
-            "under_checks": {},
         }
 
 
     if (
         home_stats.get(
             "sample_size",
-            0,
+            0
         ) < 5
         or
         away_stats.get(
             "sample_size",
-            0,
+            0
         ) < 5
     ):
 
@@ -1493,268 +1229,348 @@ def calculate_model(
             "signal": "DATA_UNAVAILABLE",
             "probability": None,
             "edge": None,
+            "over_checks": {},
+            "under_checks": {},
             "model_status": (
                 "INSUFFICIENT_L5_DATA"
             ),
-            "over_checks": {},
-            "under_checks": {},
         }
 
 
     # ========================================================
-    # OVER SCORE
-    # ========================================================
-
-    over_components = [
-
-        home_stats[
-            "over_pct"
-        ],
-
-        away_stats[
-            "over_pct"
-        ],
-
-        home_stats[
-            "btts_pct"
-        ],
-
-        away_stats[
-            "btts_pct"
-        ],
-    ]
-
-
-    avg_over = sum(
-        over_components[:2]
-    ) / 2
-
-
-    avg_btts = sum(
-        over_components[2:]
-    ) / 2
-
-
-    # Goal environment
-    goal_environment = (
-
-        home_stats[
-            "gf_avg"
-        ]
-
-        + home_stats[
-            "ga_avg"
-        ]
-
-        + away_stats[
-            "gf_avg"
-        ]
-
-        + away_stats[
-            "ga_avg"
-        ]
-    )
-
-
-    # Convert goal environment
-    # into a 0-100 score
-    goal_score = min(
-        100,
-        goal_environment
-        / 6.0
-        * 100,
-    )
-
-
-    # --------------------------------------------------------
-    # Probability
+    # OVER 2.5 CONDITIONS
     #
-    # No xG
-    # --------------------------------------------------------
-
-    probability = (
-
-        avg_over * 0.40
-
-        + avg_btts * 0.25
-
-        + goal_score * 0.35
-    )
-
-
-    probability = round(
-        max(
-            0,
-            min(
-                100,
-                probability,
-            ),
-        ),
-        1,
-    )
-
-
-    # --------------------------------------------------------
-    # Edge
-    # --------------------------------------------------------
-
-    edge = round(
-        probability - 60,
-        1,
-    )
-
-
-    # ========================================================
-    # OVER 2.5 CONFIRMATION
+    # EXACT LOGIC REQUESTED
+    #
+    # Home L5 O2.5 >= 60%
+    # Away L5 O2.5 >= 60%
+    #
+    # Home GF > 1.5
+    # Home GA > 1.0
+    #
+    # Away GF > 1.0
+    # Away GA > 1.0
+    #
+    # Home BTTS >= 60%
+    # Away BTTS >= 60%
+    #
+    # Model edge > 5%
     # ========================================================
 
     over_checks = {
 
-        "home_o25_60": (
+        "home_o25":
             home_stats[
                 "over_pct"
-            ] >= 60
-        ),
+            ] >= 60,
 
-        "away_o25_60": (
+        "away_o25":
             away_stats[
                 "over_pct"
-            ] >= 60
-        ),
+            ] >= 60,
 
-        "home_gf_15": (
+        "home_gf":
             home_stats[
                 "gf_avg"
-            ] > 1.5
-        ),
+            ] > 1.5,
 
-        "home_ga_10": (
+        "home_ga":
             home_stats[
                 "ga_avg"
-            ] > 1.0
-        ),
+            ] > 1.0,
 
-        "away_gf_10": (
+        "away_gf":
             away_stats[
                 "gf_avg"
-            ] > 1.0
-        ),
+            ] > 1.0,
 
-        "away_ga_10": (
+        "away_ga":
             away_stats[
                 "ga_avg"
-            ] > 1.0
-        ),
+            ] > 1.0,
 
-        # IMPORTANT:
-        # BTTS MUST BE >= 60%
-        #
-        # This fixes the previous problem
-        # where a team with BTTS 40%
-        # could still get OVER.
-        "home_btts_60": (
+        "home_btts":
             home_stats[
                 "btts_pct"
-            ] >= 60
-        ),
+            ] >= 60,
 
-        "away_btts_60": (
+        "away_btts":
             away_stats[
                 "btts_pct"
-            ] >= 60
-        ),
-
-        "edge_5": (
-            edge >= 5
-        ),
+            ] >= 60,
     }
 
 
-    strong_over = all(
-        over_checks.values()
-    )
-
-
     # ========================================================
-    # UNDER 2.5 CONFIRMATION
+    # UNDER 2.5 CONDITIONS
+    #
+    # Home L5 U2.5 >= 60%
+    # Away L5 U2.5 >= 60%
+    #
+    # Home GF < 1.3
+    # Home GA < 1.0
+    #
+    # Away GF < 1.1
+    # Away GA < 1.2
+    #
+    # Home BTTS < 50%
+    # Away BTTS < 50%
+    #
+    # Model edge > 5%
     # ========================================================
 
     under_checks = {
 
-        "home_u25_60": (
+        "home_u25":
             home_stats[
                 "under_pct"
-            ] >= 60
-        ),
+            ] >= 60,
 
-        "away_u25_60": (
+        "away_u25":
             away_stats[
                 "under_pct"
-            ] >= 60
-        ),
+            ] >= 60,
 
-        "home_gf_13": (
+        "home_gf":
             home_stats[
                 "gf_avg"
-            ] < 1.3
-        ),
+            ] < 1.3,
 
-        "home_ga_10": (
+        "home_ga":
             home_stats[
                 "ga_avg"
-            ] < 1.0
-        ),
+            ] < 1.0,
 
-        "away_gf_11": (
+        "away_gf":
             away_stats[
                 "gf_avg"
-            ] < 1.1
-        ),
+            ] < 1.1,
 
-        "away_ga_12": (
+        "away_ga":
             away_stats[
                 "ga_avg"
-            ] < 1.2
-        ),
+            ] < 1.2,
 
-        "home_btts_50": (
+        "home_btts":
             home_stats[
                 "btts_pct"
-            ] < 50
-        ),
+            ] < 50,
 
-        "away_btts_50": (
+        "away_btts":
             away_stats[
                 "btts_pct"
-            ] < 50
-        ),
-
-        "edge_5": (
-            edge >= 5
-        ),
+            ] < 50,
     }
 
 
-    strong_under = all(
-        under_checks.values()
+    # ========================================================
+    # MODEL PROBABILITY
+    #
+    # NO xG
+    #
+    # Only:
+    # O/U %
+    # BTTS %
+    # GF / GA
+    # ========================================================
+
+    avg_over = (
+        home_stats[
+            "over_pct"
+        ]
+        +
+        away_stats[
+            "over_pct"
+        ]
+    ) / 2
+
+
+    avg_under = (
+        home_stats[
+            "under_pct"
+        ]
+        +
+        away_stats[
+            "under_pct"
+        ]
+    ) / 2
+
+
+    avg_btts = (
+        home_stats[
+            "btts_pct"
+        ]
+        +
+        away_stats[
+            "btts_pct"
+        ]
+    ) / 2
+
+
+    goal_environment = (
+        home_stats[
+            "gf_avg"
+        ]
+        +
+        home_stats[
+            "ga_avg"
+        ]
+        +
+        away_stats[
+            "gf_avg"
+        ]
+        +
+        away_stats[
+            "ga_avg"
+        ]
+    )
+
+
+    # --------------------------------------------------------
+    # Goal score
+    # 5.5 is the maximum environment reference.
+    # --------------------------------------------------------
+
+    goal_score = min(
+        100,
+        (
+            goal_environment
+            / 5.5
+        )
+        * 100
+    )
+
+
+    # --------------------------------------------------------
+    # OVER probability
+    # --------------------------------------------------------
+
+    over_probability = (
+        avg_over * 0.50
+        +
+        avg_btts * 0.20
+        +
+        goal_score * 0.30
+    )
+
+
+    over_probability = round(
+        max(
+            0,
+            min(
+                100,
+                over_probability
+            )
+        ),
+        1
+    )
+
+
+    # --------------------------------------------------------
+    # UNDER probability
+    # --------------------------------------------------------
+
+    under_probability = (
+        avg_under * 0.50
+        +
+        (100 - avg_btts)
+        * 0.20
+        +
+        (100 - goal_score)
+        * 0.30
+    )
+
+
+    under_probability = round(
+        max(
+            0,
+            min(
+                100,
+                under_probability
+            )
+        ),
+        1
     )
 
 
     # ========================================================
-    # FINAL SIGNAL
+    # EDGE
+    #
+    # Baseline = 60%
     # ========================================================
 
-    if strong_over:
+    over_edge = round(
+        over_probability - 60,
+        1
+    )
+
+    under_edge = round(
+        under_probability - 60,
+        1
+    )
+
+
+    # ========================================================
+    # FINAL QUALIFICATION
+    #
+    # IMPORTANT:
+    # BTTS condition is now a HARD CONDITION.
+    #
+    # This prevents:
+    # Away BTTS = 40%
+    # from still producing OVER_2_5.
+    # ========================================================
+
+    over_all_conditions = (
+        all(
+            over_checks.values()
+        )
+        and
+        over_edge > 5
+    )
+
+
+    under_all_conditions = (
+        all(
+            under_checks.values()
+        )
+        and
+        under_edge > 5
+    )
+
+
+    if over_all_conditions:
 
         signal = "OVER_2_5"
+        probability = over_probability
+        edge = over_edge
 
-    elif strong_under:
+
+    elif under_all_conditions:
 
         signal = "UNDER_2_5"
+        probability = under_probability
+        edge = under_edge
+
 
     else:
 
         signal = "NEUTRAL"
+        probability = max(
+            over_probability,
+            under_probability
+        )
+
+        if (
+            probability
+            == over_probability
+        ):
+
+            edge = over_edge
+
+        else:
+
+            edge = under_edge
 
 
     return {
@@ -1765,721 +1581,589 @@ def calculate_model(
 
         "edge": edge,
 
-        "model_status": (
-            "PROXY_MODEL_2024_25"
-        ),
+        "over_probability":
+            over_probability,
 
-        "over_checks": over_checks,
+        "under_probability":
+            under_probability,
 
-        "under_checks": under_checks,
+        "over_edge":
+            over_edge,
+
+        "under_edge":
+            under_edge,
+
+        "over_checks":
+            over_checks,
+
+        "under_checks":
+            under_checks,
+
+        "model_status":
+            "RULE_MODEL_NO_XG",
     }
 
 
 # ============================================================
-# EVALUATE MATCHES
+# FORMAT HELPERS
 # ============================================================
 
-def evaluate_matches(
-    selected_fixtures
+def safe_pct(value):
+
+    if value is None:
+        return "—"
+
+    return f"{value:.1f}%"
+
+
+def safe_num(value):
+
+    if value is None:
+        return "—"
+
+    return f"{value:.2f}"
+
+
+def condition_icon(value):
+
+    return "✅" if value else "❌"
+
+
+def format_fixture_time(
+    fixture
 ):
 
-    evaluated = []
+    date_string = (
+        fixture
+        .get("fixture", {})
+        .get("date")
+    )
 
-    team_cache = {}
-
-
-    # --------------------------------------------------------
-    # Unique teams
-    # --------------------------------------------------------
-
-    unique_requests = []
-
-    seen_requests = set()
+    if not date_string:
+        return "—", "—"
 
 
-    for fixture in selected_fixtures:
+    try:
 
-        home = fixture[
-            "teams"
-        ][
-            "home"
-        ]
-
-        away = fixture[
-            "teams"
-        ][
-            "away"
-        ]
-
-
-        home_request = (
-            home["id"],
-            "HOME",
+        dt = datetime.fromisoformat(
+            date_string
         )
 
-        away_request = (
-            away["id"],
-            "AWAY",
-        )
+        if dt.tzinfo is None:
 
-
-        for request in [
-            home_request,
-            away_request,
-        ]:
-
-            if request not in seen_requests:
-
-                seen_requests.add(
-                    request
-                )
-
-                unique_requests.append(
-                    request
-                )
-
-
-    # --------------------------------------------------------
-    # Fetch history
-    # --------------------------------------------------------
-
-    for team_id, venue in unique_requests:
-
-        if (
-            st.session_state.api_calls
-            >= MAX_API_CALLS_PER_RUN
-        ):
-
-            break
-
-
-        cache_key = (
-            f"{team_id}_"
-            f"{venue}_"
-            f"{HISTORY_SEASON}"
-        )
-
-
-        if cache_key in team_cache:
-
-            continue
-
-
-        # Get team name from fixture
-        team_name = "Unknown"
-
-
-        for fixture in selected_fixtures:
-
-            home = fixture[
-                "teams"
-            ][
-                "home"
-            ]
-
-            away = fixture[
-                "teams"
-            ][
-                "away"
-            ]
-
-
-            if home.get(
-                "id"
-            ) == team_id:
-
-                team_name = home.get(
-                    "name",
-                    "Unknown",
-                )
-
-                break
-
-
-            if away.get(
-                "id"
-            ) == team_id:
-
-                team_name = away.get(
-                    "name",
-                    "Unknown",
-                )
-
-                break
-
-
-        team_cache[
-            cache_key
-        ] = get_team_history(
-            team_id,
-            team_name,
-            venue,
-        )
-
-
-        if (
-            st.session_state.api_calls
-            < MAX_API_CALLS_PER_RUN
-        ):
-
-            time.sleep(
-                API_DELAY_SECONDS
+            dt = dt.replace(
+                tzinfo=timezone.utc
             )
 
-
-    # --------------------------------------------------------
-    # Match evaluation
-    # --------------------------------------------------------
-
-    for fixture in selected_fixtures:
-
-        home = fixture[
-            "teams"
-        ][
-            "home"
-        ]
-
-        away = fixture[
-            "teams"
-        ][
-            "away"
-        ]
-
-
-        home_id = home[
-            "id"
-        ]
-
-        away_id = away[
-            "id"
-        ]
-
-
-        home_name = home[
-            "name"
-        ]
-
-        away_name = away[
-            "name"
-        ]
-
-
-        home_key = (
-            f"{home_id}_"
-            f"HOME_"
-            f"{HISTORY_SEASON}"
+        dt = dt.astimezone(
+            MMT_TZ
         )
 
-        away_key = (
-            f"{away_id}_"
-            f"AWAY_"
-            f"{HISTORY_SEASON}"
+        return (
+            dt.strftime(
+                "%Y-%m-%d"
+            ),
+            dt.strftime(
+                "%H:%M"
+            ),
         )
 
+    except Exception:
 
-        home_stats = team_cache.get(
-            home_key,
-            {
-                "status": "API_ERROR",
-                "sample_size": 0,
-            },
+        return (
+            date_string[:10],
+            date_string[11:16],
         )
-
-
-        away_stats = team_cache.get(
-            away_key,
-            {
-                "status": "API_ERROR",
-                "sample_size": 0,
-            },
-        )
-
-
-        model = calculate_model(
-            home_stats,
-            away_stats,
-        )
-
-
-        fixture_date = (
-            fixture[
-                "fixture"
-            ][
-                "date"
-            ]
-        )
-
-
-        try:
-
-            local_dt = datetime.fromisoformat(
-                fixture_date
-            ).astimezone(
-                MMT_TZ
-            )
-
-            display_date = (
-                local_dt.strftime(
-                    "%Y-%m-%d"
-                )
-            )
-
-            display_time = (
-                local_dt.strftime(
-                    "%H:%M"
-                )
-            )
-
-        except Exception:
-
-            display_date = (
-                fixture_date[:10]
-            )
-
-            display_time = (
-                fixture_date[11:16]
-            )
-
-
-        evaluated.append(
-            {
-
-                "fixture_id": fixture[
-                    "fixture"
-                ][
-                    "id"
-                ],
-
-                "league_id": fixture[
-                    "league"
-                ][
-                    "id"
-                ],
-
-                "league": fixture[
-                    "league"
-                ][
-                    "name"
-                ],
-
-                "country": fixture[
-                    "league"
-                ].get(
-                    "country",
-                    "",
-                ),
-
-                "home": home_name,
-
-                "away": away_name,
-
-                "date": display_date,
-
-                "time": display_time,
-
-                "signal": model[
-                    "signal"
-                ],
-
-                "prob": model[
-                    "probability"
-                ],
-
-                "edge": model[
-                    "edge"
-                ],
-
-                "model_status": model[
-                    "model_status"
-                ],
-
-                "h_stats": home_stats,
-
-                "a_stats": away_stats,
-
-                "over_checks": model.get(
-                    "over_checks",
-                    {},
-                ),
-
-                "under_checks": model.get(
-                    "under_checks",
-                    {},
-                ),
-
-                "xg_used": False,
-            }
-        )
-
-
-    return evaluated
 
 
 # ============================================================
-# SIGNAL PRIORITY
+# CSS
 # ============================================================
 
-def signal_priority(
-    signal
-):
+st.markdown(
+    """
+    <style>
 
-    if signal == "OVER_2_5":
-        return 0
+    .main-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin-bottom: 0.2rem;
+    }
 
-    if signal == "UNDER_2_5":
-        return 1
+    .subtitle {
+        color: #8f98a8;
+        margin-bottom: 1.2rem;
+    }
 
-    if signal == "NEUTRAL":
-        return 2
+    .info-card {
+        padding: 18px;
+        border-radius: 14px;
+        background: rgba(40, 50, 65, 0.55);
+        border: 1px solid rgba(150, 160, 175, 0.22);
+        margin-bottom: 12px;
+    }
 
-    return 3
+    .match-card {
+        padding: 20px;
+        border-radius: 16px;
+        background: rgba(30, 36, 47, 0.72);
+        border: 1px solid rgba(150, 160, 175, 0.25);
+        margin-bottom: 16px;
+    }
+
+    .signal-over {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+        display: inline-block;
+    }
+
+    .signal-under {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+        display: inline-block;
+    }
+
+    .signal-neutral {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+        display: inline-block;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
 # HEADER
 # ============================================================
 
-st.title(
-    "⚽ Football Prematch Scanner"
+st.markdown(
+    '<div class="main-title">⚽ Football Prematch Scanner</div>',
+    unsafe_allow_html=True,
 )
 
-st.caption(
-    "Multi-League Prematch Analysis"
+st.markdown(
+    '<div class="subtitle">'
+    'Over 2.5 / Under 2.5 • L5 • BTTS • GF/GA • Model Edge'
+    '</div>',
+    unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# SIDEBAR
+# SEARCH WINDOW DISPLAY
 # ============================================================
 
-with st.sidebar:
-
-    st.header(
-        "⚙️ Scanner Settings"
-    )
-
-
-    st.write(
-        "### 🕐 Search Window"
-    )
-
-    st.write(
-        f"**{window_start.strftime('%Y-%m-%d %I:%M %p')} MMT**"
-    )
-
-    st.write(
-        "→"
-    )
-
-    st.write(
-        f"**{window_end.strftime('%Y-%m-%d %I:%M %p')} MMT**"
-    )
-
-
-    st.divider()
-
-
-    st.write(
-        "### 🛡️ API Safety"
-    )
-
-    st.write(
-        f"Max API calls: "
-        f"**{MAX_API_CALLS_PER_RUN}**"
-    )
-
-    st.write(
-        f"Calls used: "
-        f"**{st.session_state.api_calls}**"
-    )
-
-
-    if (
-        st.session_state.remaining_quota
-        is not None
-    ):
-
-        st.write(
-            "Remaining quota: "
-            f"**{st.session_state.remaining_quota}**"
-        )
-
-
-    st.divider()
-
-
-    st.write(
-        "### 📊 Model"
-    )
-
-    st.write(
-        "xG: **NOT USED**"
-    )
-
-    st.write(
-        "L5: **HOME / AWAY separated**"
-    )
-
-    st.write(
-        "Over BTTS: **≥ 60%**"
-    )
-
-    st.write(
-        "Under BTTS: **< 50%**"
-    )
-
-    st.write(
-        "Edge: **≥ 5%**"
-    )
-
-
-# ============================================================
-# TOP STATUS
-# ============================================================
-
-col1, col2, col3, col4 = st.columns(
-    4
+search_start, search_end = (
+    get_search_window()
 )
 
+col1, col2, col3 = st.columns(
+    3
+)
 
 with col1:
 
-    st.metric(
-        "SEARCH WINDOW",
-        (
-            f"{window_start.strftime('%m-%d %I:%M')}"
-            " → "
-            f"{window_end.strftime('%m-%d %I:%M')}"
-            " MMT"
-        ),
+    st.markdown(
+        '<div class="info-card">'
+        '<b>🕐 SEARCH WINDOW</b><br><br>'
+        f'{search_start.strftime("%Y-%m-%d %I:%M %p")} '
+        'MMT<br>'
+        '↓<br>'
+        f'{search_end.strftime("%Y-%m-%d %I:%M %p")} '
+        'MMT'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
 
 with col2:
 
-    st.metric(
-        "MODE",
-        "MULTI-LEAGUE",
+    st.markdown(
+        '<div class="info-card">'
+        '<b>⚙️ MODE</b><br><br>'
+        'MULTI_LEAGUE_PREMATCH'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
 
 with col3:
 
-    st.metric(
-        "MAX API",
-        str(
-            MAX_API_CALLS_PER_RUN
-        ),
+    remaining = (
+        st.session_state.remaining_quota
     )
 
-
-with col4:
-
-    remaining_display = (
-        st.session_state.remaining_quota
-        if
-        st.session_state.remaining_quota
-        is not None
-        else "—"
+    remaining_text = (
+        str(remaining)
+        if remaining is not None
+        else "Not reported"
     )
 
-    st.metric(
-        "API REMAINING",
-        str(
-            remaining_display
-        ),
+    st.markdown(
+        '<div class="info-card">'
+        '<b>🛡️ API SAFETY</b><br><br>'
+        f'Run calls: '
+        f'{st.session_state.api_calls}/'
+        f'{MAX_API_CALLS_PER_RUN}'
+        '<br>'
+        f'Remaining: {remaining_text}'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
 
 # ============================================================
-# LEAGUE FILTER UI
+# LEAGUE FILTER
 # ============================================================
 
-st.header(
-    "🏆 League Filter"
+st.markdown(
+    "## 🏆 League Filter"
 )
-
-
-# Group leagues
-grouped = {}
-
-for league_id, info in LEAGUES.items():
-
-    group = info[
-        "group"
-    ]
-
-    if group not in grouped:
-        grouped[group] = []
-
-    grouped[group].append(
-        (
-            league_id,
-            info[
-                "country"
-            ],
-            info[
-                "name"
-            ],
-        )
-    )
-
-
-# Default ALL leagues
-default_league_ids = list(
-    LEAGUES.keys()
-)
-
-
-selected_league_ids = []
 
 
 # ------------------------------------------------------------
-# Quick selection
+# Load catalogue
 # ------------------------------------------------------------
 
-quick_col1, quick_col2, quick_col3 = st.columns(
-    3
+catalog = ensure_league_catalog()
+
+
+# ------------------------------------------------------------
+# Refresh button
+# ------------------------------------------------------------
+
+refresh_col1, refresh_col2 = st.columns(
+    [1, 4]
+)
+
+with refresh_col1:
+
+    if st.button(
+        "🔄 Refresh Leagues",
+        use_container_width=True,
+    ):
+
+        st.session_state.league_catalog = None
+
+        st.rerun()
+
+
+if not catalog:
+
+    st.warning(
+        "⚠️ League catalogue မရရှိသေးပါ။ "
+        "API key / quota ကို စစ်ပါ။"
+    )
+
+    st.stop()
+
+
+# ============================================================
+# COUNTRY SELECTOR
+# ============================================================
+
+countries = country_options(
+    catalog
+)
+
+country_choices = [
+    "🌍 All Countries"
+] + countries
+
+
+selected_country = st.selectbox(
+    "Country",
+    country_choices,
+    index=0,
+    key="country_selector",
+    filter_mode="contains",
 )
 
 
-with quick_col1:
+# ============================================================
+# FILTER LEAGUES BY COUNTRY
+# ============================================================
 
-    all_leagues = st.checkbox(
-        "Select ALL leagues",
-        value=True,
-    )
+if selected_country == "🌍 All Countries":
 
-
-with quick_col2:
-
-    main_only = st.checkbox(
-        "Main leagues only",
-        value=False,
-    )
-
-
-with quick_col3:
-
-    cups_only = st.checkbox(
-        "European Cups only",
-        value=False,
-    )
-
-
-if all_leagues:
-
-    selected_league_ids = (
-        default_league_ids.copy()
-    )
-
-
-elif main_only:
-
-    selected_league_ids = [
-
-        league_id
-
-        for league_id, info
-        in LEAGUES.items()
-
-        if info[
-            "group"
-        ] == "Main Leagues"
-    ]
-
-
-elif cups_only:
-
-    selected_league_ids = [
-
-        league_id
-
-        for league_id, info
-        in LEAGUES.items()
-
-        if info[
-            "group"
-        ] == "European Cups"
-    ]
-
+    filtered_leagues = catalog
 
 else:
 
-    for group_name, leagues in grouped.items():
-
-        st.subheader(
-            group_name
-        )
-
-
-        for league_id, country, name in leagues:
-
-            checked = st.checkbox(
-                f"{country} — {name}",
-                value=True,
-                key=f"league_{league_id}",
-            )
-
-            if checked:
-
-                selected_league_ids.append(
-                    league_id
-                )
-
-
-# ------------------------------------------------------------
-# Always show selected information safely
-# ------------------------------------------------------------
-
-selected_names = [
-
-    LEAGUES[
-        league_id
-    ][
-        "name"
+    filtered_leagues = [
+        item
+        for item in catalog
+        if item["country"]
+        == selected_country
     ]
 
-    for league_id
-    in selected_league_ids
 
-    if league_id in LEAGUES
+# ============================================================
+# COMPETITION MULTISELECT
+# ============================================================
+
+league_options = [
+    league_label(item)
+    for item in filtered_leagues
 ]
 
 
-if selected_names:
+label_to_item = {
+    league_label(item): item
+    for item in filtered_leagues
+}
 
-    st.info(
-        f"Selected leagues: "
-        f"**{len(selected_names)}**"
-    )
+
+selected_labels = st.multiselect(
+    "Competition",
+    league_options,
+    default=[],
+    placeholder=(
+        "Competition ရွေးပါ "
+        "(Search လုပ်လို့ရပါတယ်)"
+    ),
+    filter_mode="contains",
+    key="competition_selector",
+)
+
+
+selected_leagues = [
+    label_to_item[label]
+    for label in selected_labels
+    if label in label_to_item
+]
+
+
+# ============================================================
+# SELECTED LEAGUE SUMMARY
+# ============================================================
+
+st.info(
+    f"🏆 Selected leagues: "
+    f"**{len(selected_leagues)}**"
+)
+
+
+if selected_leagues:
 
     with st.expander(
-        "View selected leagues"
+        "▼ View selected leagues",
+        expanded=False,
     ):
 
-        st.write(
-            ", ".join(
-                selected_names
+        for league in selected_leagues:
+
+            st.write(
+                f"• **{league['name']}** "
+                f"— {league['country']} "
+                f"• ID: {league['id']}"
             )
+
+
+# ============================================================
+# QUICK PRESETS
+# ============================================================
+
+st.markdown(
+    "### ⚡ Quick League Presets"
+)
+
+preset_col1, preset_col2, preset_col3 = (
+    st.columns(3)
+)
+
+
+def find_leagues(
+    names,
+    country=None
+):
+
+    results = []
+
+    for item in catalog:
+
+        if country:
+
+            if item[
+                "country"
+            ].lower() != country.lower():
+
+                continue
+
+
+        if item[
+            "name"
+        ].lower() in [
+            name.lower()
+            for name in names
+        ]:
+
+            results.append(
+                item
+            )
+
+    return results
+
+
+with preset_col1:
+
+    if st.button(
+        "🇬🇧 England Top 2",
+        use_container_width=True,
+    ):
+
+        # Note:
+        # Widget state cannot safely be mutated
+        # after the widget is instantiated.
+        # So show the suggested IDs instead.
+        england = [
+            item
+            for item in catalog
+            if item[
+                "country"
+            ].lower()
+            == "england"
+            and item[
+                "name"
+            ].lower()
+            in [
+                "premier league",
+                "championship",
+            ]
+        ]
+
+        if england:
+
+            st.session_state[
+                "preset_message"
+            ] = england
+
+            st.rerun()
+
+
+with preset_col2:
+
+    if st.button(
+        "🇪🇸 Spain Top 2",
+        use_container_width=True,
+    ):
+
+        spain = [
+            item
+            for item in catalog
+            if item[
+                "country"
+            ].lower()
+            == "spain"
+            and item[
+                "name"
+            ].lower()
+            in [
+                "la liga",
+                "la liga 2",
+            ]
+        ]
+
+        if spain:
+
+            st.session_state[
+                "preset_message"
+            ] = spain
+
+            st.rerun()
+
+
+with preset_col3:
+
+    if st.button(
+        "🇩🇪 Germany Top 2",
+        use_container_width=True,
+    ):
+
+        germany = [
+            item
+            for item in catalog
+            if item[
+                "country"
+            ].lower()
+            == "germany"
+            and item[
+                "name"
+            ].lower()
+            in [
+                "bundesliga",
+                "2. bundesliga",
+            ]
+        ]
+
+        if germany:
+
+            st.session_state[
+                "preset_message"
+            ] = germany
+
+            st.rerun()
+
+
+# ============================================================
+# PRESET DISPLAY
+# ============================================================
+
+if (
+    "preset_message"
+    in st.session_state
+    and
+    st.session_state[
+        "preset_message"
+    ]
+):
+
+    preset_items = st.session_state[
+        "preset_message"
+    ]
+
+    st.success(
+        "Preset တွေ့ပါပြီ။ "
+        "Competition dropdown ထဲမှာ "
+        "အဆိုပါ leagues ကို ရွေးနိုင်ပါတယ်။"
+    )
+
+    for item in preset_items:
+
+        st.write(
+            f"• {item['name']} "
+            f"— {item['country']} "
+            f"(ID {item['id']})"
         )
 
-else:
+    if st.button(
+        "✖ Clear Preset"
+    ):
 
-    st.warning(
-        "⚠️ No league selected."
-    )
+        st.session_state[
+            "preset_message"
+        ] = []
+
+        st.rerun()
 
 
 # ============================================================
 # SEARCH BUTTON
 # ============================================================
 
-st.divider()
+st.markdown(
+    "---"
+)
 
 
-run_scan = st.button(
-    "🔎 SEARCH MATCHES",
+scan_button = st.button(
+    "🔍 SEARCH MATCHES",
     type="primary",
     use_container_width=True,
 )
@@ -2489,768 +2173,870 @@ run_scan = st.button(
 # SCAN
 # ============================================================
 
-if run_scan:
+if scan_button:
 
-    # --------------------------------------------------------
-    # Reset current-run state
-    # --------------------------------------------------------
-
-    st.session_state.api_calls = 0
-
-    st.session_state.remaining_quota = None
-
-    st.session_state.stop_reason = ""
-
-    # --------------------------------------------------------
-    # Validate league selection
-    # --------------------------------------------------------
-
-    if not selected_league_ids:
-
-        st.error(
-            "❌ League တစ်ခုမှ မရွေးထားပါ။"
-        )
-
-        st.stop()
-
-
-    # --------------------------------------------------------
-    # Display exact MMT window
-    # --------------------------------------------------------
-
-    st.subheader(
-        "🕐 SEARCH WINDOW"
-    )
-
-    st.success(
-        (
-            f"{window_start.strftime('%Y-%m-%d %I:%M %p')} MMT"
-            f" → "
-            f"{window_end.strftime('%Y-%m-%d %I:%M %p')} MMT"
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # Fetch fixtures
-    # --------------------------------------------------------
-
-    with st.spinner(
-        "Fetching fixtures..."
-    ):
-
-        raw_fixtures = (
-            fetch_window_fixtures()
-        )
-
-
-    st.write(
-        f"Raw fixtures received: "
-        f"**{len(raw_fixtures)}**"
-    )
-
-
-    # --------------------------------------------------------
-    # Filter
-    # --------------------------------------------------------
-
-    filtered_fixtures = filter_fixtures(
-        raw_fixtures,
-        selected_league_ids,
-    )
-
-
-    # --------------------------------------------------------
-    # Maximum matches
-    # --------------------------------------------------------
-
-    if len(
-        filtered_fixtures
-    ) > MAX_MATCHES:
-
-        filtered_fixtures = (
-            filtered_fixtures[
-                :MAX_MATCHES
-            ]
-        )
-
-
-    # --------------------------------------------------------
-    # No matches
-    # --------------------------------------------------------
-
-    if not filtered_fixtures:
+    if not selected_leagues:
 
         st.warning(
-            "⚠️ လက်ရှိ MMT search window အတွင်း "
-            "ရွေးထားသော league များမှ "
-            "prematch data မတွေ့ပါ။"
+            "⚠️ အနည်းဆုံး Competition တစ်ခု ရွေးပေးပါ။"
         )
-
-
-        st.info(
-            (
-                "Search window = "
-                f"{window_start.strftime('%Y-%m-%d %I:%M %p')} "
-                "→ "
-                f"{window_end.strftime('%Y-%m-%d %I:%M %p')} MMT"
-            )
-        )
-
 
     else:
 
-        st.success(
-            f"Found {len(filtered_fixtures)} "
-            f"prematch matches."
-        )
+        selected_ids = {
+            item["id"]
+            for item in selected_leagues
+        }
+
+
+        st.session_state.api_calls = 0
+
+        st.session_state.remaining_quota = None
+
+        st.session_state.last_scan_results = []
 
 
         # ----------------------------------------------------
-        # Basic fixture list
+        # SEARCH WINDOW
         # ----------------------------------------------------
 
-        st.header(
-            "📅 MATCHES"
+        st.info(
+            "🔎 Fixtures ရှာနေပါသည်...\n\n"
+            f"{search_start.strftime('%Y-%m-%d %I:%M %p')} "
+            "MMT → "
+            f"{search_end.strftime('%Y-%m-%d %I:%M %p')} "
+            "MMT"
         )
 
 
-        fixture_rows = []
+        fixtures = collect_selected_fixtures(
+            selected_ids,
+            search_start,
+            search_end,
+        )
 
 
-        for fixture in filtered_fixtures:
+        if not fixtures:
 
-            fixture_mmt = datetime.fromisoformat(
-                fixture[
-                    "fixture"
-                ][
-                    "date"
-                ]
-            ).astimezone(
-                MMT_TZ
+            st.warning(
+                "⚠️ ရွေးထားသော leagues များအတွက် "
+                "သတ်မှတ်ထားသော 12:00 PM → "
+                "နောက်နေ့ 12:00 PM MMT window အတွင်း "
+                "upcoming match မတွေ့ပါ။"
+            )
+
+        else:
+
+            st.success(
+                f"📅 Fixtures found: "
+                f"{len(fixtures)}"
             )
 
 
-            fixture_rows.append(
-                {
-                    "Date": fixture_mmt.strftime(
-                        "%Y-%m-%d"
-                    ),
+            # ------------------------------------------------
+            # LIMIT MATCHES
+            # ------------------------------------------------
 
-                    "Time MMT": fixture_mmt.strftime(
-                        "%H:%M"
-                    ),
-
-                    "League": fixture[
-                        "league"
-                    ][
-                        "name"
-                    ],
-
-                    "Country": fixture[
-                        "league"
-                    ].get(
-                        "country",
-                        "",
-                    ),
-
-                    "Home": fixture[
-                        "teams"
-                    ][
-                        "home"
-                    ][
-                        "name"
-                    ],
-
-                    "Away": fixture[
-                        "teams"
-                    ][
-                        "away"
-                    ][
-                        "name"
-                    ],
-                }
-            )
-
-
-        st.dataframe(
-            fixture_rows,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-
-        # ----------------------------------------------------
-        # Evaluate
-        # ----------------------------------------------------
-
-        st.header(
-            "📊 ANALYSIS"
-        )
-
-
-        with st.spinner(
-            "Calculating L5 HOME/AWAY statistics..."
-        ):
-
-            evaluated_matches = (
-                evaluate_matches(
-                    filtered_fixtures
-                )
-            )
-
-
-        # ----------------------------------------------------
-        # Sort
-        # ----------------------------------------------------
-
-        evaluated_matches.sort(
-            key=lambda x: (
-                signal_priority(
-                    x[
-                        "signal"
-                    ]
-                ),
-
-                x[
-                    "date"
-                ],
-
-                x[
-                    "time"
-                ],
-            )
-        )
-
-
-        # ----------------------------------------------------
-        # Cards
-        # ----------------------------------------------------
-
-        for match in evaluated_matches:
-
-            signal = match[
-                "signal"
+            fixtures_to_analyze = fixtures[
+                :MAX_MATCHES_TO_ANALYZE
             ]
 
 
-            if signal == "OVER_2_5":
+            st.info(
+                f"📊 Analysis limit: "
+                f"{len(fixtures_to_analyze)} "
+                f"matches"
+            )
 
-                signal_text = (
-                    "🟢 OVER 2.5"
+
+            # ------------------------------------------------
+            # TEAM CACHE
+            # ------------------------------------------------
+
+            home_cache = {}
+            away_cache = {}
+
+
+            evaluated = []
+
+
+            # ------------------------------------------------
+            # ANALYZE
+            # ------------------------------------------------
+
+            progress = st.progress(
+                0
+            )
+
+
+            for index, fixture in enumerate(
+                fixtures_to_analyze,
+                1,
+            ):
+
+                home = fixture[
+                    "teams"
+                ][
+                    "home"
+                ]
+
+                away = fixture[
+                    "teams"
+                ][
+                    "away"
+                ]
+
+
+                home_id = home[
+                    "id"
+                ]
+
+                away_id = away[
+                    "id"
+                ]
+
+                home_name = home[
+                    "name"
+                ]
+
+                away_name = away[
+                    "name"
+                ]
+
+
+                # --------------------------------------------
+                # HOME HISTORY
+                # --------------------------------------------
+
+                home_key = (
+                    f"{home_id}_HOME"
                 )
 
-            elif signal == "UNDER_2_5":
 
-                signal_text = (
-                    "🔵 UNDER 2.5"
+                if home_key not in home_cache:
+
+                    home_cache[
+                        home_key
+                    ] = get_team_history(
+                        home_id,
+                        home_name,
+                        "HOME",
+                    )
+
+
+                home_stats = home_cache[
+                    home_key
+                ]
+
+
+                # --------------------------------------------
+                # STOP IF API SAFETY LIMIT HIT
+                # --------------------------------------------
+
+                if (
+                    st.session_state.api_calls
+                    >= MAX_API_CALLS_PER_RUN
+                ):
+
+                    st.warning(
+                        "🛑 API 80-call safety stop "
+                        "ဖြစ်သွားပါပြီ။"
+                    )
+
+                    break
+
+
+                # --------------------------------------------
+                # AWAY HISTORY
+                # --------------------------------------------
+
+                away_key = (
+                    f"{away_id}_AWAY"
                 )
 
-            elif signal == "DATA_UNAVAILABLE":
 
-                signal_text = (
-                    "⚪ DATA UNAVAILABLE"
+                if away_key not in away_cache:
+
+                    away_cache[
+                        away_key
+                    ] = get_team_history(
+                        away_id,
+                        away_name,
+                        "AWAY",
+                    )
+
+
+                away_stats = away_cache[
+                    away_key
+                ]
+
+
+                # --------------------------------------------
+                # MODEL
+                # --------------------------------------------
+
+                model = calculate_model(
+                    home_stats,
+                    away_stats,
+                )
+
+
+                # --------------------------------------------
+                # TIME
+                # --------------------------------------------
+
+                display_date, display_time = (
+                    format_fixture_time(
+                        fixture
+                    )
+                )
+
+
+                evaluated.append(
+                    {
+                        "fixture_id":
+                            fixture[
+                                "fixture"
+                            ][
+                                "id"
+                            ],
+
+                        "league":
+                            fixture[
+                                "league"
+                            ][
+                                "name"
+                            ],
+
+                        "country":
+                            fixture[
+                                "league"
+                            ].get(
+                                "country",
+                                ""
+                            ),
+
+                        "home":
+                            home_name,
+
+                        "away":
+                            away_name,
+
+                        "date":
+                            display_date,
+
+                        "time":
+                            display_time,
+
+                        "signal":
+                            model[
+                                "signal"
+                            ],
+
+                        "prob":
+                            model[
+                                "probability"
+                            ],
+
+                        "edge":
+                            model[
+                                "edge"
+                            ],
+
+                        "model":
+                            model,
+
+                        "h_stats":
+                            home_stats,
+
+                        "a_stats":
+                            away_stats,
+                    }
+                )
+
+
+                progress.progress(
+                    index
+                    /
+                    len(
+                        fixtures_to_analyze
+                    )
+                )
+
+
+            progress.empty()
+
+
+            st.session_state.last_scan_results = (
+                evaluated
+            )
+
+
+            st.session_state.scan_message = (
+                f"Scan complete • "
+                f"{len(evaluated)} matches"
+            )
+
+
+# ============================================================
+# RESULTS
+# ============================================================
+
+results = (
+    st.session_state.last_scan_results
+)
+
+
+if results:
+
+    st.markdown(
+        "---"
+    )
+
+    st.markdown(
+        "## 📊 Match Results"
+    )
+
+
+    # --------------------------------------------------------
+    # SORT:
+    # OVER → UNDER → NEUTRAL
+    # --------------------------------------------------------
+
+    priority = {
+        "OVER_2_5": 0,
+        "UNDER_2_5": 1,
+        "NEUTRAL": 2,
+        "DATA_UNAVAILABLE": 3,
+    }
+
+
+    results.sort(
+        key=lambda x: (
+            priority.get(
+                x["signal"],
+                9
+            ),
+            x["date"],
+            x["time"],
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # RESULT CARDS
+    # --------------------------------------------------------
+
+    for match in results:
+
+        signal = match[
+            "signal"
+        ]
+
+
+        if signal == "OVER_2_5":
+
+            signal_text = (
+                "🟢 OVER 2.5"
+            )
+
+            signal_class = (
+                "signal-over"
+            )
+
+        elif signal == "UNDER_2_5":
+
+            signal_text = (
+                "🔵 UNDER 2.5"
+            )
+
+            signal_class = (
+                "signal-under"
+            )
+
+        else:
+
+            signal_text = (
+                "⚪ NEUTRAL"
+            )
+
+            signal_class = (
+                "signal-neutral"
+            )
+
+
+        st.markdown(
+            '<div class="match-card">',
+            unsafe_allow_html=True,
+        )
+
+
+        # ----------------------------------------------------
+        # HEADER
+        # ----------------------------------------------------
+
+        c1, c2 = st.columns(
+            [3, 1]
+        )
+
+
+        with c1:
+
+            st.markdown(
+                f"### ⚽ "
+                f"{match['home']} "
+                f"vs "
+                f"{match['away']}"
+            )
+
+            st.write(
+                f"🏆 {match['league']} "
+                f"— {match['country']}"
+            )
+
+            st.write(
+                f"📅 {match['date']} "
+                f"  🕐 {match['time']} MMT"
+            )
+
+
+        with c2:
+
+            st.markdown(
+                f'<div class="{signal_class}">'
+                f'{signal_text}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.write("")
+
+
+            prob = match[
+                "prob"
+            ]
+
+            edge = match[
+                "edge"
+            ]
+
+
+            if prob is None:
+
+                st.write(
+                    "Probability: —"
                 )
 
             else:
 
-                signal_text = (
-                    "⚪ NEUTRAL"
+                st.write(
+                    f"Probability: "
+                    f"**{prob:.1f}%**"
                 )
 
 
-            with st.container(
-                border=True
-            ):
-
-                st.subheader(
-                    (
-                        f"{match['home']} "
-                        f"vs "
-                        f"{match['away']}"
-                    )
-                )
-
+            if edge is None:
 
                 st.write(
-                    (
-                        f"🏆 {match['league']} "
-                        f"({match['country']})"
-                    )
+                    "Model Edge: —"
                 )
 
+            else:
 
                 st.write(
-                    (
-                        f"📅 {match['date']} "
-                        f"⏰ {match['time']} MMT"
-                    )
+                    f"Model Edge: "
+                    f"**{edge:+.1f}%**"
                 )
 
 
-                c1, c2, c3, c4 = st.columns(
-                    4
-                )
+        st.markdown(
+            "---"
+        )
 
 
-                with c1:
+        # ----------------------------------------------------
+        # STATS
+        # ----------------------------------------------------
 
-                    st.metric(
-                        "Signal",
-                        signal_text,
-                    )
+        home_stats = match[
+            "h_stats"
+        ]
 
-
-                with c2:
-
-                    probability = (
-                        match[
-                            "prob"
-                        ]
-                    )
-
-                    st.metric(
-                        "Probability",
-                        (
-                            str(
-                                probability
-                            )
-                            if probability
-                            is not None
-                            else "—"
-                        ),
-                    )
+        away_stats = match[
+            "a_stats"
+        ]
 
 
-                with c3:
-
-                    edge = (
-                        match[
-                            "edge"
-                        ]
-                    )
-
-                    st.metric(
-                        "Model Edge",
-                        (
-                            f"{edge}%"
-                            if edge
-                            is not None
-                            else "—"
-                        ),
-                    )
+        stat1, stat2 = st.columns(
+            2
+        )
 
 
-                with c4:
+        with stat1:
 
-                    st.metric(
-                        "xG",
-                        "NO",
-                    )
+            st.markdown(
+                f"#### 🏠 "
+                f"{match['home']} — L5 HOME"
+            )
+
+            st.write(
+                f"O2.5: "
+                f"**{safe_pct(home_stats.get('over_pct'))}**"
+            )
+
+            st.write(
+                f"U2.5: "
+                f"**{safe_pct(home_stats.get('under_pct'))}**"
+            )
+
+            st.write(
+                f"BTTS: "
+                f"**{safe_pct(home_stats.get('btts_pct'))}**"
+            )
+
+            st.write(
+                f"GF: "
+                f"**{safe_num(home_stats.get('gf_avg'))}**"
+            )
+
+            st.write(
+                f"GA: "
+                f"**{safe_num(home_stats.get('ga_avg'))}**"
+            )
 
 
-                # ------------------------------------------------
-                # Stats
-                # ------------------------------------------------
+        with stat2:
 
-                h_stats = match[
-                    "h_stats"
-                ]
+            st.markdown(
+                f"#### ✈️ "
+                f"{match['away']} — L5 AWAY"
+            )
 
-                a_stats = match[
-                    "a_stats"
-                ]
+            st.write(
+                f"O2.5: "
+                f"**{safe_pct(away_stats.get('over_pct'))}**"
+            )
 
+            st.write(
+                f"U2.5: "
+                f"**{safe_pct(away_stats.get('under_pct'))}**"
+            )
+
+            st.write(
+                f"BTTS: "
+                f"**{safe_pct(away_stats.get('btts_pct'))}**"
+            )
+
+            st.write(
+                f"GF: "
+                f"**{safe_num(away_stats.get('gf_avg'))}**"
+            )
+
+            st.write(
+                f"GA: "
+                f"**{safe_num(away_stats.get('ga_avg'))}**"
+            )
+
+
+        # ----------------------------------------------------
+        # RULE CHECKS
+        # ----------------------------------------------------
+
+        model = match[
+            "model"
+        ]
+
+
+        with st.expander(
+            "🔎 View model conditions"
+        ):
+
+
+            if signal == "OVER_2_5":
 
                 st.markdown(
-                    "### 📈 L5 Statistics"
+                    "### 🟢 OVER 2.5 Conditions"
                 )
 
 
-                stats_col1, stats_col2 = st.columns(
-                    2
-                )
-
-
-                with stats_col1:
-
-                    st.markdown(
-                        f"""
-                        **🏠 {match['home']} — HOME L5**
-
-                        - O2.5: **{h_stats.get('over_pct', '—')}%**
-                        - U2.5: **{h_stats.get('under_pct', '—')}%**
-                        - BTTS: **{h_stats.get('btts_pct', '—')}%**
-                        - GF: **{h_stats.get('gf_avg', '—')}**
-                        - GA: **{h_stats.get('ga_avg', '—')}**
-                        """
-                    )
-
-
-                with stats_col2:
-
-                    st.markdown(
-                        f"""
-                        **✈️ {match['away']} — AWAY L5**
-
-                        - O2.5: **{a_stats.get('over_pct', '—')}%**
-                        - U2.5: **{a_stats.get('under_pct', '—')}%**
-                        - BTTS: **{a_stats.get('btts_pct', '—')}%**
-                        - GF: **{a_stats.get('gf_avg', '—')}**
-                        - GA: **{a_stats.get('ga_avg', '—')}**
-                        """
-                    )
-
-
-                # ------------------------------------------------
-                # OVER CHECKS
-                # ------------------------------------------------
-
-                if match[
+                checks = model[
                     "over_checks"
-                ]:
-
-                    with st.expander(
-                        "OVER 2.5 Confirmation"
-                    ):
-
-                        checks = match[
-                            "over_checks"
-                        ]
-
-
-                        for key, value in checks.items():
-
-                            if value:
-
-                                st.write(
-                                    f"✅ {key}"
-                                )
-
-                            else:
-
-                                st.write(
-                                    f"❌ {key}"
-                                )
-
-
-                # ------------------------------------------------
-                # UNDER CHECKS
-                # ------------------------------------------------
-
-                if match[
-                    "under_checks"
-                ]:
-
-                    with st.expander(
-                        "UNDER 2.5 Confirmation"
-                    ):
-
-                        checks = match[
-                            "under_checks"
-                        ]
-
-
-                        for key, value in checks.items():
-
-                            if value:
-
-                                st.write(
-                                    f"✅ {key}"
-                                )
-
-                            else:
-
-                                st.write(
-                                    f"❌ {key}"
-                                )
-
-
-                # ------------------------------------------------
-                # Scorelines
-                # ------------------------------------------------
-
-                with st.expander(
-                    "View L5 Scorelines"
-                ):
-
-                    h_scorelines = (
-                        h_stats.get(
-                            "scorelines",
-                            [],
-                        )
-                    )
-
-                    a_scorelines = (
-                        a_stats.get(
-                            "scorelines",
-                            [],
-                        )
-                    )
-
-
-                    st.markdown(
-                        "#### 🏠 Home L5"
-                    )
-
-                    if h_scorelines:
-
-                        st.dataframe(
-                            h_scorelines,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-
-                    else:
-
-                        st.write(
-                            "No data."
-                        )
-
-
-                    st.markdown(
-                        "#### ✈️ Away L5"
-                    )
-
-                    if a_scorelines:
-
-                        st.dataframe(
-                            a_scorelines,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-
-                    else:
-
-                        st.write(
-                            "No data."
-                        )
-
-
-                # ------------------------------------------------
-                # Data warning
-                # ------------------------------------------------
-
-                st.warning(
-                    (
-                        "⚠️ History data is "
-                        "2024 season proxy. "
-                        "It is NOT current 2026 form."
-                    )
-                )
-
-
-        # ----------------------------------------------------
-        # Save JSON
-        # ----------------------------------------------------
-
-        output = {
-
-            "updated_at": now_mmt.strftime(
-                "%Y-%m-%d %H:%M MMT"
-            ),
-
-            "window_start": (
-                window_start.strftime(
-                    "%Y-%m-%d %H:%M MMT"
-                )
-            ),
-
-            "window_end": (
-                window_end.strftime(
-                    "%Y-%m-%d %H:%M MMT"
-                )
-            ),
-
-            "mode": (
-                "MULTI_LEAGUE_PREMATCH"
-            ),
-
-            "league_filter": [
-                LEAGUES[
-                    league_id
                 ]
-                for league_id
-                in selected_league_ids
-                if league_id in LEAGUES
-            ],
-
-            "history_season": (
-                HISTORY_SEASON
-            ),
-
-            "history_data_type": (
-                "2024 historical proxy"
-            ),
-
-            "xg_used": False,
-
-            "model_rules": {
-
-                "over": {
-
-                    "home_o25_min": 60,
-
-                    "away_o25_min": 60,
-
-                    "home_gf_min": 1.5,
-
-                    "home_ga_min": 1.0,
-
-                    "away_gf_min": 1.0,
-
-                    "away_ga_min": 1.0,
-
-                    "home_btts_min": 60,
-
-                    "away_btts_min": 60,
-
-                    "edge_min": 5,
-                },
-
-                "under": {
-
-                    "home_u25_min": 60,
-
-                    "away_u25_min": 60,
-
-                    "home_gf_max": 1.3,
-
-                    "home_ga_max": 1.0,
-
-                    "away_gf_max": 1.1,
-
-                    "away_ga_max": 1.2,
-
-                    "home_btts_max": 50,
-
-                    "away_btts_max": 50,
-
-                    "edge_min": 5,
-                },
-            },
-
-            "api_calls": (
-                st.session_state.api_calls
-            ),
-
-            "remaining_quota": (
-                st.session_state.remaining_quota
-            ),
-
-            "matches": (
-                evaluated_matches
-            ),
-        }
 
 
-        try:
-
-            with open(
-                OUTPUT_FILE,
-                "w",
-                encoding="utf-8",
-            ) as file:
-
-                json.dump(
-                    output,
-                    file,
-                    indent=2,
-                    ensure_ascii=False,
+                st.write(
+                    f"{condition_icon(checks['home_o25'])} "
+                    f"Home L5 O2.5 ≥ 60% "
+                    f"— "
+                    f"{safe_pct(home_stats.get('over_pct'))}"
                 )
 
-        except Exception:
+                st.write(
+                    f"{condition_icon(checks['away_o25'])} "
+                    f"Away L5 O2.5 ≥ 60% "
+                    f"— "
+                    f"{safe_pct(away_stats.get('over_pct'))}"
+                )
 
-            pass
+                st.write(
+                    f"{condition_icon(checks['home_gf'])} "
+                    f"Home GF > 1.5 "
+                    f"— "
+                    f"{safe_num(home_stats.get('gf_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['home_ga'])} "
+                    f"Home GA > 1.0 "
+                    f"— "
+                    f"{safe_num(home_stats.get('ga_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_gf'])} "
+                    f"Away GF > 1.0 "
+                    f"— "
+                    f"{safe_num(away_stats.get('gf_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_ga'])} "
+                    f"Away GA > 1.0 "
+                    f"— "
+                    f"{safe_num(away_stats.get('ga_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['home_btts'])} "
+                    f"Home BTTS ≥ 60% "
+                    f"— "
+                    f"{safe_pct(home_stats.get('btts_pct'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_btts'])} "
+                    f"Away BTTS ≥ 60% "
+                    f"— "
+                    f"{safe_pct(away_stats.get('btts_pct'))}"
+                )
+
+                st.write(
+                    f"Model Edge > 5% "
+                    f"— "
+                    f"**{model['over_edge']:+.1f}%**"
+                )
+
+
+            elif signal == "UNDER_2_5":
+
+                st.markdown(
+                    "### 🔵 UNDER 2.5 Conditions"
+                )
+
+
+                checks = model[
+                    "under_checks"
+                ]
+
+
+                st.write(
+                    f"{condition_icon(checks['home_u25'])} "
+                    f"Home L5 U2.5 ≥ 60% "
+                    f"— "
+                    f"{safe_pct(home_stats.get('under_pct'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_u25'])} "
+                    f"Away L5 U2.5 ≥ 60% "
+                    f"— "
+                    f"{safe_pct(away_stats.get('under_pct'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['home_gf'])} "
+                    f"Home GF < 1.3 "
+                    f"— "
+                    f"{safe_num(home_stats.get('gf_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['home_ga'])} "
+                    f"Home GA < 1.0 "
+                    f"— "
+                    f"{safe_num(home_stats.get('ga_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_gf'])} "
+                    f"Away GF < 1.1 "
+                    f"— "
+                    f"{safe_num(away_stats.get('gf_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_ga'])} "
+                    f"Away GA < 1.2 "
+                    f"— "
+                    f"{safe_num(away_stats.get('ga_avg'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['home_btts'])} "
+                    f"Home BTTS < 50% "
+                    f"— "
+                    f"{safe_pct(home_stats.get('btts_pct'))}"
+                )
+
+                st.write(
+                    f"{condition_icon(checks['away_btts'])} "
+                    f"Away BTTS < 50% "
+                    f"— "
+                    f"{safe_pct(away_stats.get('btts_pct'))}"
+                )
+
+                st.write(
+                    f"Model Edge > 5% "
+                    f"— "
+                    f"**{model['under_edge']:+.1f}%**"
+                )
+
+
+            else:
+
+                st.markdown(
+                    "### ⚪ Why NEUTRAL?"
+                )
+
+
+                over_failed = [
+                    key
+                    for key, value
+                    in model[
+                        "over_checks"
+                    ].items()
+                    if not value
+                ]
+
+
+                under_failed = [
+                    key
+                    for key, value
+                    in model[
+                        "under_checks"
+                    ].items()
+                    if not value
+                ]
+
+
+                st.write(
+                    "OVER failed conditions:"
+                )
+
+                if over_failed:
+
+                    st.write(
+                        "❌ "
+                        +
+                        ", ".join(
+                            over_failed
+                        )
+                    )
+
+                else:
+
+                    st.write(
+                        "✅ All Over conditions passed "
+                        "but edge condition failed."
+                    )
+
+
+                st.write(
+                    "UNDER failed conditions:"
+                )
+
+                if under_failed:
+
+                    st.write(
+                        "❌ "
+                        +
+                        ", ".join(
+                            under_failed
+                        )
+                    )
+
+                else:
+
+                    st.write(
+                        "✅ All Under conditions passed "
+                        "but edge condition failed."
+                    )
+
+
+        # ----------------------------------------------------
+        # DATA WARNING
+        # ----------------------------------------------------
+
+        st.caption(
+            "⚠️ L5 history = API-SPORTS 2024 "
+            "historical proxy. "
+            "xG မသုံးထားပါ။ "
+            "BTTS condition ကို hard filter အဖြစ် "
+            "သတ်မှတ်ထားသည်။"
+        )
+
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # ============================================================
-# API SAFETY STATUS
+# FOOTER / API SAFETY
 # ============================================================
 
-st.divider()
-
-st.header(
-    "🛡️ API SAFETY STATUS"
+st.markdown(
+    "---"
 )
 
-
-s1, s2, s3 = st.columns(
-    3
+footer_col1, footer_col2 = st.columns(
+    2
 )
 
+with footer_col1:
 
-with s1:
-
-    st.metric(
-        "API Calls",
-        str(
-            st.session_state.api_calls
-        ),
+    st.caption(
+        f"API calls this run: "
+        f"{st.session_state.api_calls} "
+        f"/ {MAX_API_CALLS_PER_RUN}"
     )
 
 
-with s2:
+with footer_col2:
 
-    quota = (
+    if (
         st.session_state.remaining_quota
-    )
+        is not None
+    ):
 
-    st.metric(
-        "Remaining Quota",
-        (
-            str(quota)
-            if quota is not None
-            else "—"
-        ),
-    )
+        st.caption(
+            "API remaining quota: "
+            f"{st.session_state.remaining_quota}"
+        )
 
+    else:
 
-with s3:
+        st.caption(
+            "API remaining quota: Not reported"
+        )
 
-    st.metric(
-        "Hard Limit",
-        str(
-            MAX_API_CALLS_PER_RUN
-        ),
-    )
-
-
-if st.session_state.stop_reason:
-
-    st.warning(
-        "⚠️ "
-        + st.session_state.stop_reason
-    )
-
-
-# ============================================================
-# FINAL INFORMATION
-# ============================================================
-
-st.divider()
 
 st.caption(
-    (
-        "Data source: API-SPORTS / API-FOOTBALL. "
-        "Historical team statistics use the configured "
-        f"{HISTORY_SEASON} season proxy. "
-        "xG is intentionally NOT used because the current "
-        "API plan does not provide the required xG data."
-    )
+    "Myanmar Time window: "
+    "Today 12:00 PM → Tomorrow 12:00 PM MMT"
 )
 
 st.caption(
-    (
-        "Search window is always calculated in Myanmar Time "
-        "(Asia/Yangon): 12:00 PM → next day 12:00 PM."
-    )
-)
-
-st.caption(
-    (
-        "OVER 2.5 requires BOTH Home and Away BTTS ≥ 60%. "
-        "A team with BTTS 40%, for example, cannot pass "
-        "the OVER 2.5 confirmation."
-    )
+    "No xG • L5 O/U • L5 BTTS • GF/GA • Model Edge"
 )
