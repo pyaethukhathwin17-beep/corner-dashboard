@@ -1,243 +1,773 @@
 import json
 import os
+from datetime import datetime, timedelta, timezone
+
 import streamlit as st
 
 
 # ============================================================
-# 1. PAGE CONFIG
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="Pre-Match Over/Under Intelligence Pro",
+    page_title="Football Prematch Scanner",
     page_icon="⚽",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
 # ============================================================
-# 2. CUSTOM CSS
+# TIMEZONE
+# Myanmar Standard Time = UTC + 6:30
+# ============================================================
+
+MMT_TZ = timezone(timedelta(hours=6, minutes=30))
+
+
+# ============================================================
+# FILE
+# ============================================================
+
+OUTPUT_FILE = "matches_data.json"
+
+
+# ============================================================
+# LEAGUE CONFIGURATION
+# ============================================================
+#
+# API-SPORTS / API-FOOTBALL V3 league IDs
+#
+# These IDs are competition IDs.
+# They remain stable across seasons.
+#
+# NOTE:
+# Cross-division cup matches are NOT represented by the
+# Premier League / Championship league ID.
+#
+# For example:
+# Premier League vs Championship teams playing in FA Cup
+# belongs to FA Cup, not Premier League.
+#
+# Therefore cups are included separately.
+# ============================================================
+
+LEAGUES = {
+
+    # --------------------------------------------------------
+    # ARGENTINA
+    # --------------------------------------------------------
+
+    "Argentina — Liga Profesional": {
+        "id": 128,
+        "country": "Argentina",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # AUSTRALIA
+    # --------------------------------------------------------
+
+    "Australia — A-League": {
+        "id": 188,
+        "country": "Australia",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # AUSTRIA
+    # --------------------------------------------------------
+
+    "Austria — Bundesliga": {
+        "id": 218,
+        "country": "Austria",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # BELGIUM
+    # --------------------------------------------------------
+
+    "Belgium — Pro League": {
+        "id": 144,
+        "country": "Belgium",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # BRAZIL
+    # --------------------------------------------------------
+
+    "Brazil — Serie A": {
+        "id": 71,
+        "country": "Brazil",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # CHILE
+    # --------------------------------------------------------
+
+    "Chile — Primera División": {
+        "id": 265,
+        "country": "Chile",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # CHINA
+    # --------------------------------------------------------
+
+    "China — Super League": {
+        "id": 169,
+        "country": "China",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # COLOMBIA
+    # --------------------------------------------------------
+
+    "Colombia — Primera A": {
+        "id": 239,
+        "country": "Colombia",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # CROATIA
+    # --------------------------------------------------------
+
+    "Croatia — HNL": {
+        "id": 210,
+        "country": "Croatia",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # DENMARK
+    # --------------------------------------------------------
+
+    "Denmark — Superliga": {
+        "id": 119,
+        "country": "Denmark",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # ECUADOR
+    # --------------------------------------------------------
+
+    "Ecuador — Liga Pro": {
+        "id": 242,
+        "country": "Ecuador",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # GREECE
+    # --------------------------------------------------------
+
+    "Greece — Super League": {
+        "id": 197,
+        "country": "Greece",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # JAPAN
+    # --------------------------------------------------------
+
+    "Japan — J1 League": {
+        "id": 98,
+        "country": "Japan",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # MEXICO
+    # --------------------------------------------------------
+
+    "Mexico — Liga MX": {
+        "id": 262,
+        "country": "Mexico",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # NETHERLANDS
+    # --------------------------------------------------------
+
+    "Netherlands — Eredivisie": {
+        "id": 88,
+        "country": "Netherlands",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # NORWAY
+    # --------------------------------------------------------
+
+    "Norway — Eliteserien": {
+        "id": 103,
+        "country": "Norway",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # PERU
+    # --------------------------------------------------------
+
+    "Peru — Liga 1": {
+        "id": 281,
+        "country": "Peru",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # POLAND
+    # --------------------------------------------------------
+
+    "Poland — Ekstraklasa": {
+        "id": 106,
+        "country": "Poland",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # PORTUGAL
+    # --------------------------------------------------------
+
+    "Portugal — Primeira Liga": {
+        "id": 94,
+        "country": "Portugal",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # SAUDI ARABIA
+    # --------------------------------------------------------
+
+    "Saudi Arabia — Saudi Pro League": {
+        "id": 307,
+        "country": "Saudi-Arabia",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # SCOTLAND
+    # --------------------------------------------------------
+
+    "Scotland — Premiership": {
+        "id": 179,
+        "country": "Scotland",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # SWEDEN
+    # --------------------------------------------------------
+
+    "Sweden — Allsvenskan": {
+        "id": 113,
+        "country": "Sweden",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # SWITZERLAND
+    # --------------------------------------------------------
+
+    "Switzerland — Super League": {
+        "id": 207,
+        "country": "Switzerland",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # TURKEY
+    # --------------------------------------------------------
+
+    "Turkey — Süper Lig": {
+        "id": 203,
+        "country": "Turkey",
+        "type": "League",
+    },
+
+    # --------------------------------------------------------
+    # USA
+    # --------------------------------------------------------
+
+    "USA — MLS": {
+        "id": 253,
+        "country": "USA",
+        "type": "League",
+    },
+
+    # ========================================================
+    # ENGLAND
+    # ========================================================
+
+    "England — Premier League": {
+        "id": 39,
+        "country": "England",
+        "type": "League",
+    },
+
+    "England — Championship": {
+        "id": 40,
+        "country": "England",
+        "type": "League",
+    },
+
+    # FA CUP
+    "England — FA Cup": {
+        "id": 45,
+        "country": "England",
+        "type": "Cup",
+    },
+
+    # EFL CUP
+    "England — EFL Cup": {
+        "id": 48,
+        "country": "England",
+        "type": "Cup",
+    },
+
+    # ========================================================
+    # SPAIN
+    # ========================================================
+
+    "Spain — La Liga": {
+        "id": 140,
+        "country": "Spain",
+        "type": "League",
+    },
+
+    "Spain — La Liga 2": {
+        "id": 141,
+        "country": "Spain",
+        "type": "League",
+    },
+
+    "Spain — Copa del Rey": {
+        "id": 143,
+        "country": "Spain",
+        "type": "Cup",
+    },
+
+    # ========================================================
+    # FRANCE
+    # ========================================================
+
+    "France — Ligue 1": {
+        "id": 61,
+        "country": "France",
+        "type": "League",
+    },
+
+    "France — Ligue 2": {
+        "id": 62,
+        "country": "France",
+        "type": "League",
+    },
+
+    "France — Coupe de France": {
+        "id": 66,
+        "country": "France",
+        "type": "Cup",
+    },
+
+    # ========================================================
+    # GERMANY
+    # ========================================================
+
+    "Germany — Bundesliga": {
+        "id": 78,
+        "country": "Germany",
+        "type": "League",
+    },
+
+    "Germany — 2. Bundesliga": {
+        "id": 79,
+        "country": "Germany",
+        "type": "League",
+    },
+
+    "Germany — DFB Pokal": {
+        "id": 81,
+        "country": "Germany",
+        "type": "Cup",
+    },
+
+    # ========================================================
+    # ITALY
+    # ========================================================
+
+    "Italy — Serie A": {
+        "id": 135,
+        "country": "Italy",
+        "type": "League",
+    },
+
+    "Italy — Serie B": {
+        "id": 136,
+        "country": "Italy",
+        "type": "League",
+    },
+
+    "Italy — Coppa Italia": {
+        "id": 137,
+        "country": "Italy",
+        "type": "Cup",
+    },
+
+    # ========================================================
+    # EUROPEAN CUPS
+    # ========================================================
+
+    "UEFA — Champions League": {
+        "id": 2,
+        "country": "World",
+        "type": "Cup",
+    },
+
+    "UEFA — Europa League": {
+        "id": 3,
+        "country": "World",
+        "type": "Cup",
+    },
+
+    "UEFA — Conference League": {
+        "id": 848,
+        "country": "World",
+        "type": "Cup",
+    },
+}
+
+
+# ============================================================
+# CUSTOM CSS
 # ============================================================
 
 st.markdown(
     """
-<style>
+    <style>
 
-.stApp {
-    background-color: #0b0e14;
-    color: #e6edf3;
-}
+    .main-title {
+        font-size: 34px;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
 
-.header-card {
-    background: linear-gradient(
-        135deg,
-        #161b22 0%,
-        #21262d 100%
-    );
-    border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-}
+    .sub-title {
+        color: #9aa4b2;
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
 
-.badge-over {
-    background-color: #00e676;
-    color: #042410;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-weight: 800;
-    display: inline-block;
-}
+    .info-box {
+        background: #171b22;
+        border: 1px solid #303640;
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 12px;
+    }
 
-.badge-under {
-    background-color: #ff1744;
-    color: #ffffff;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-weight: 800;
-    display: inline-block;
-}
+    .warning-box {
+        background: #35380c;
+        border-radius: 14px;
+        padding: 16px;
+        margin-top: 15px;
+    }
 
-.badge-neutral {
-    background-color: #30363d;
-    color: #8b949e;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-weight: 800;
-    display: inline-block;
-}
+    .match-card {
+        background: #171b22;
+        border: 1px solid #303640;
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 14px;
+    }
 
-.badge-unavailable {
-    background-color: #5a2028;
-    color: #ff7b72;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-weight: 800;
-    display: inline-block;
-}
+    .team-name {
+        font-size: 20px;
+        font-weight: 700;
+    }
 
-.stat-box {
-    background-color: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
-    min-height: 82px;
-}
+    .match-time {
+        font-size: 15px;
+        color: #9aa4b2;
+    }
 
-.stat-box-warning {
-    background-color: #161b22;
-    border: 1px solid #5a2028;
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
-    min-height: 82px;
-}
+    .signal-over {
+        font-weight: 800;
+        font-size: 18px;
+    }
 
-.score-box {
-    background-color: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 8px 12px;
-    margin-bottom: 6px;
-}
+    .signal-under {
+        font-weight: 800;
+        font-size: 18px;
+    }
 
-.small-note {
-    color: #8b949e;
-    font-size: 12px;
-}
+    .signal-neutral {
+        font-weight: 700;
+        font-size: 18px;
+    }
 
-.data-warning {
-    background-color: #2d1b1e;
-    border: 1px solid #5a2028;
-    color: #ff7b72;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
-}
-
-.data-success {
-    background-color: #12251a;
-    border: 1px solid #238636;
-    color: #56d364;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
-}
-
-.info-box {
-    background-color: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
-}
-
-.league-box {
-    background-color: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-bottom: 6px;
-}
-
-.filter-title {
-    color: #58a6ff;
-    font-weight: 700;
-    font-size: 15px;
-}
-
-</style>
-""",
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# 3. HEADER
+# HEADER
 # ============================================================
 
 st.markdown(
-    """
-## ⚽ MATCHES FEED
+    '<div class="main-title">⚽ Football Prematch Scanner</div>',
+    unsafe_allow_html=True,
+)
 
-<span style="
-    color:#58a6ff;
-    font-size:14px;
-">
-Pre-Match Intelligence Pro
-</span>
-""",
+st.markdown(
+    '<div class="sub-title">'
+    'Over 2.5 / Under 2.5 • BTTS • GF / GA • Model Edge'
+    '</div>',
     unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# 4. CHECK JSON FILE
+# LOAD JSON
 # ============================================================
 
-if not os.path.exists("matches_data.json"):
+def load_matches_data():
 
-    st.error(
-        "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။ "
-        "ကျေးဇူးပြု၍ GitHub Actions Workflow ကို "
-        "အရင် Run ပေးပါ။"
+    if not os.path.exists(OUTPUT_FILE):
+        return None
+
+    try:
+
+        with open(
+            OUTPUT_FILE,
+            "r",
+            encoding="utf-8",
+        ) as file:
+
+            data = json.load(file)
+
+        if isinstance(data, dict):
+            return data
+
+    except Exception as exc:
+
+        st.error(
+            f"matches_data.json ဖတ်ရာတွင် error ဖြစ်နေပါတယ်: {exc}"
+        )
+
+    return None
+
+
+data = load_matches_data()
+
+
+# ============================================================
+# CURRENT MMT TIME
+# ============================================================
+
+now_mmt = datetime.now(MMT_TZ)
+
+
+# ============================================================
+# CORRECT DAILY SEARCH WINDOW
+#
+# Today 12:00 PM MMT
+#       ↓
+# Tomorrow 12:00 PM MMT
+#
+# This is exactly one 24-hour window.
+# ============================================================
+
+today_noon = datetime(
+    now_mmt.year,
+    now_mmt.month,
+    now_mmt.day,
+    12,
+    0,
+    0,
+    tzinfo=MMT_TZ,
+)
+
+if now_mmt < today_noon:
+
+    window_start = today_noon - timedelta(days=1)
+
+else:
+
+    window_start = today_noon
+
+
+window_end = window_start + timedelta(days=1)
+
+
+# ============================================================
+# HEADER INFO
+# ============================================================
+
+col1, col2, col3 = st.columns(3)
+
+
+with col1:
+
+    st.markdown(
+        '<div class="info-box">'
+        '<div style="color:#9aa4b2;">🕐 CURRENT MMT</div>'
+        f'<div style="font-size:22px;font-weight:700;">'
+        f'{now_mmt.strftime("%Y-%m-%d %I:%M %p")}'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+with col2:
+
+    st.markdown(
+        '<div class="info-box">'
+        '<div style="color:#9aa4b2;">🕘 SEARCH WINDOW</div>'
+        f'<div style="font-size:18px;font-weight:700;">'
+        f'{window_start.strftime("%Y-%m-%d %I:%M %p")}'
+        '<br>'
+        f'→ {window_end.strftime("%Y-%m-%d %I:%M %p")} MMT'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+with col3:
+
+    match_count = 0
+
+    if data:
+
+        matches_temp = data.get("matches", [])
+
+        if isinstance(matches_temp, list):
+            match_count = len(matches_temp)
+
+    st.markdown(
+        '<div class="info-box">'
+        '<div style="color:#9aa4b2;">⚽ MATCHES</div>'
+        f'<div style="font-size:28px;font-weight:800;">'
+        f'{match_count}'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# MODE
+# ============================================================
+
+st.markdown(
+    '<div class="info-box">'
+    '<div style="color:#9aa4b2;">⚙️ MODE</div>'
+    '<div style="font-size:20px;font-weight:800;">'
+    'MULTI_LEAGUE_PREMATCH'
+    '</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# LEAGUE FILTER
+# ============================================================
+
+st.markdown(
+    "## 🏆 League Filter"
+)
+
+
+league_names = list(LEAGUES.keys())
+
+
+selected_leagues = st.multiselect(
+    "Select leagues / cups",
+    options=league_names,
+    default=league_names,
+)
+
+
+# ============================================================
+# FILTER INFORMATION
+# ============================================================
+
+selected_ids = {
+    LEAGUES[name]["id"]
+    for name in selected_leagues
+}
+
+
+st.caption(
+    f"Selected competitions: "
+    f"{len(selected_leagues)} / {len(league_names)}"
+)
+
+
+# ============================================================
+# SHOW LEAGUE LIST
+# ============================================================
+
+with st.expander(
+    "📋 View selected league IDs",
+    expanded=False,
+):
+
+    for league_name in selected_leagues:
+
+        league = LEAGUES[league_name]
+
+        st.write(
+            f"**{league_name}** "
+            f"— ID `{league['id']}` "
+            f"— {league['type']}"
+        )
+
+
+# ============================================================
+# IMPORTANT NOTE
+# ============================================================
+
+st.info(
+    "ℹ️ Premier League / Championship, "
+    "La Liga / La Liga 2, Ligue 1 / Ligue 2, "
+    "Bundesliga / 2. Bundesliga နှင့် Serie A / Serie B "
+    "တို့ကို သီးခြား competition အဖြစ် filter လုပ်ထားပါတယ်။ "
+    "Cup ပွဲတွေကတော့ FA Cup, Copa del Rey, Coupe de France, "
+    "DFB Pokal, Coppa Italia နှင့် UEFA cups အဖြစ် သီးခြားပါဝင်ပါတယ်။"
+)
+
+
+# ============================================================
+# NO DATA
+# ============================================================
+
+if data is None:
+
+    st.warning(
+        "⚠️ matches_data.json မတွေ့ပါ။ "
+        "API fetch script ကို run လုပ်ပြီး "
+        "matches_data.json ထွက်လာအောင် အရင်လုပ်ပါ။"
     )
 
     st.stop()
 
 
 # ============================================================
-# 5. LOAD JSON
-# ============================================================
-
-try:
-
-    with open(
-        "matches_data.json",
-        "r",
-        encoding="utf-8"
-    ) as file:
-
-        data = json.load(file)
-
-except json.JSONDecodeError as exc:
-
-    st.error(
-        "❌ `matches_data.json` ကို JSON အဖြစ် "
-        "ဖတ်မရပါ။"
-    )
-
-    st.code(str(exc))
-
-    st.stop()
-
-except Exception as exc:
-
-    st.error(
-        "❌ JSON ဖိုင်ဖတ်ရာတွင် Error ဖြစ်နေပါတယ်။"
-    )
-
-    st.code(str(exc))
-
-    st.stop()
-
-
-# ============================================================
-# 6. VALIDATE DATA
-# ============================================================
-
-if not isinstance(data, dict):
-
-    st.error(
-        "❌ `matches_data.json` ရဲ့ root structure က "
-        "JSON object မဟုတ်ပါ။"
-    )
-
-    st.stop()
-
-
-# ============================================================
-# 7. GET MATCH DATA
+# DATA
 # ============================================================
 
 matches = data.get(
@@ -250,1406 +780,656 @@ if not isinstance(matches, list):
     matches = []
 
 
-updated_date = data.get(
-    "updated_at",
-    "N/A"
-)
-
-window_range = data.get(
-    "window_range",
-    "N/A"
-)
-
-mode = data.get(
-    "mode",
-    "N/A"
-)
-
-league_filter_data = data.get(
-    "league_filter",
-    "N/A"
-)
-
-
 # ============================================================
-# 8. SAFE DISPLAY FUNCTIONS
+# FILTER MATCHES BY LEAGUE
 # ============================================================
-
-def safe_pct(value):
-
-    if value is None:
-        return "N/A"
-
-    try:
-        return f"{float(value):.0f}%"
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return "N/A"
-
-
-def safe_number(value):
-
-    if value is None:
-        return "N/A"
-
-    try:
-        return f"{float(value):.2f}"
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return "N/A"
-
-
-def safe_probability(value):
-
-    if value is None:
-        return "N/A"
-
-    try:
-        return f"{float(value):.1f}%"
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return "N/A"
-
-
-def safe_edge(value):
-
-    if value is None:
-        return "N/A"
-
-    try:
-        return f"{float(value):+.1f}%"
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return "N/A"
-
-
-def get_reason(stats):
-
-    if not isinstance(stats, dict):
-        return "UNKNOWN"
-
-    return stats.get(
-        "reason",
-        stats.get(
-            "status",
-            "UNKNOWN"
-        )
-    )
-
-
-def get_sample_size(stats):
-
-    if not isinstance(stats, dict):
-        return 0
-
-    try:
-        return int(
-            stats.get(
-                "sample_size",
-                0
-            )
-        )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return 0
-
-
-def is_available(stats):
-
-    if not isinstance(stats, dict):
-        return False
-
-    # New format
-    if "available" in stats:
-
-        return bool(
-            stats.get(
-                "available",
-                False
-            )
-        )
-
-    # Existing model format
-    status = stats.get(
-        "status",
-        ""
-    )
-
-    if status in [
-        "PROXY_2024_25",
-        "PARTIAL_PROXY_2024_25",
-    ]:
-
-        return True
-
-    if get_sample_size(stats) >= 5:
-
-        return True
-
-    return False
-
-
-# ============================================================
-# 9. HEADER INFORMATION
-# ============================================================
-
-st.markdown(
-    f"""
-<div class="header-card">
-
-    <div style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:20px;
-        flex-wrap:wrap;
-    ">
-
-        <div>
-
-            <span class="small-note">
-                ACTIVE MATCHES DATE
-            </span>
-
-            <h4 style="
-                margin:0;
-                color:#00e676;
-            ">
-                📅 {updated_date}
-            </h4>
-
-        </div>
-
-        <div>
-
-            <span style="
-                background-color:#21262d;
-                color:#58a6ff;
-                padding:7px 12px;
-                border-radius:6px;
-                font-weight:bold;
-            ">
-                Total Matches: {len(matches)}
-            </span>
-
-        </div>
-
-    </div>
-
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# 10. WINDOW / MODE INFORMATION
-# ============================================================
-
-info_col1, info_col2 = st.columns(2)
-
-
-with info_col1:
-
-    st.markdown(
-        f"""
-        <div class="info-box">
-
-        <span class="small-note">
-        🕐 SEARCH WINDOW
-        </span>
-
-        <br>
-
-        <b>
-        {window_range}
-        </b>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-with info_col2:
-
-    st.markdown(
-        f"""
-        <div class="info-box">
-
-        <span class="small-note">
-        ⚙️ MODE
-        </span>
-
-        <br>
-
-        <b>
-        {mode}
-        </b>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# 11. LEAGUE FILTER DISPLAY
-#
-# IMPORTANT:
-# DO NOT use st.metric() with a list.
-# league_filter can be a list/string.
-# ============================================================
-
-st.markdown(
-    "### 🏆 League Filter"
-)
-
-
-if isinstance(
-    league_filter_data,
-    list
-):
-
-    # --------------------------------------------------------
-    # LIST FORMAT
-    # --------------------------------------------------------
-
-    league_count = len(
-        league_filter_data
-    )
-
-    st.markdown(
-        f"""
-        <div class="info-box">
-
-        <span class="filter-title">
-        📋 {league_count} League / Competition Groups
-        </span>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.expander(
-        "📋 View League Filter",
-        expanded=False
-    ):
-
-        for league in league_filter_data:
-
-            st.markdown(
-                f"""
-                <div class="league-box">
-                • {league}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-elif isinstance(
-    league_filter_data,
-    str
-):
-
-    st.markdown(
-        f"""
-        <div class="info-box">
-
-        <span class="filter-title">
-        🏆 {league_filter_data}
-        </span>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-else:
-
-    st.markdown(
-        """
-        <div class="info-box">
-
-        <span class="small-note">
-        League filter information is not available.
-        </span>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# 12. EMPTY MATCH CHECK
-# ============================================================
-
-if not matches:
-
-    st.warning(
-        "⚠️ လက်ရှိမှာ ပြသရန် match data မရှိသေးပါ။"
-    )
-
-    st.stop()
-
-
-# ============================================================
-# 13. MATCH FILTER
-# ============================================================
-
-available_leagues = []
-
-for match in matches:
-
-    if not isinstance(
-        match,
-        dict
-    ):
-        continue
-
-    league_name = match.get(
-        "league",
-        "Unknown League"
-    )
-
-    if league_name not in available_leagues:
-
-        available_leagues.append(
-            league_name
-        )
-
-
-available_leagues.sort()
-
-
-st.markdown(
-    "### 🔎 Match Filter"
-)
-
-
-selected_leagues = st.multiselect(
-    "League",
-    options=available_leagues,
-    default=available_leagues,
-    key="league_selector",
-)
-
 
 filtered_matches = []
 
 
 for match in matches:
 
-    if not isinstance(
-        match,
-        dict
-    ):
-        continue
+    league_id = match.get("league_id")
 
     league_name = match.get(
         "league",
-        "Unknown League"
+        ""
     )
 
-    if league_name in selected_leagues:
+    # --------------------------------------------------------
+    # Prefer league_id
+    # --------------------------------------------------------
 
-        filtered_matches.append(
-            match
+    if league_id is not None:
+
+        try:
+
+            if int(league_id) not in selected_ids:
+                continue
+
+        except Exception:
+
+            continue
+
+    else:
+
+        # ----------------------------------------------------
+        # Fallback for older matches_data.json
+        # ----------------------------------------------------
+
+        matched = False
+
+        for name, config in LEAGUES.items():
+
+            if league_name == name:
+                matched = True
+
+                if config["id"] not in selected_ids:
+                    continue
+
+                break
+
+            if (
+                league_name
+                == name.split(" — ")[-1]
+            ):
+                matched = True
+
+                if config["id"] not in selected_ids:
+                    continue
+
+                break
+
+        if not matched:
+
+            # Do not silently discard old data.
+            # Use league name matching where possible.
+            if selected_leagues:
+
+                allowed_names = set(
+                    selected_leagues
+                )
+
+                if league_name not in allowed_names:
+
+                    continue
+
+
+    filtered_matches.append(match)
+
+
+# ============================================================
+# DATE FILTER
+#
+# IMPORTANT:
+# matches_data.json stores date/time separately.
+# We convert the displayed match time to MMT and then check
+# whether it falls within:
+#
+# today 12 PM -> tomorrow 12 PM
+# ============================================================
+
+def match_is_in_window(match):
+
+    date_value = str(
+        match.get("date", "")
+    ).strip()
+
+    time_value = str(
+        match.get("time", "")
+    ).strip()
+
+    if not date_value:
+
+        return True
+
+    if not time_value:
+
+        return True
+
+    try:
+
+        naive_dt = datetime.strptime(
+            f"{date_value} {time_value}",
+            "%Y-%m-%d %H:%M",
         )
 
+        match_dt = naive_dt.replace(
+            tzinfo=MMT_TZ
+        )
 
-st.markdown(
-    f"""
-    <div class="info-box">
+        return (
+            window_start
+            <= match_dt
+            < window_end
+        )
 
-    <span class="small-note">
-    MATCHES AFTER FILTER
-    </span>
+    except Exception:
 
-    <br>
+        return True
 
-    <b style="
-        color:#58a6ff;
-        font-size:18px;
-    ">
-    {len(filtered_matches)}
-    </b>
 
-    </div>
-    """,
-    unsafe_allow_html=True,
+window_matches = [
+    match
+    for match in filtered_matches
+    if match_is_in_window(match)
+]
+
+
+# ============================================================
+# SORT
+# ============================================================
+
+def signal_priority(signal):
+
+    priorities = {
+        "OVER_2_5": 0,
+        "UNDER_2_5": 1,
+        "NEUTRAL": 2,
+        "DATA_UNAVAILABLE": 3,
+    }
+
+    return priorities.get(
+        signal,
+        4,
+    )
+
+
+window_matches.sort(
+    key=lambda match: (
+        signal_priority(
+            match.get("signal", "")
+        ),
+        match.get("date", ""),
+        match.get("time", ""),
+    )
 )
 
 
 # ============================================================
-# 14. MATCH LOOP
+# SUMMARY
 # ============================================================
 
-for m in filtered_matches:
-
-    if not isinstance(
-        m,
-        dict
-    ):
-        continue
+st.markdown(
+    "## 📊 Scanner Result"
+)
 
 
-    # --------------------------------------------------------
-    # BASIC MATCH DATA
-    # --------------------------------------------------------
+over_count = sum(
+    1
+    for match in window_matches
+    if match.get("signal")
+    == "OVER_2_5"
+)
 
-    h_name = m.get(
+under_count = sum(
+    1
+    for match in window_matches
+    if match.get("signal")
+    == "UNDER_2_5"
+)
+
+neutral_count = sum(
+    1
+    for match in window_matches
+    if match.get("signal")
+    == "NEUTRAL"
+)
+
+
+c1, c2, c3, c4 = st.columns(4)
+
+
+with c1:
+    st.metric(
+        "Total Matches",
+        len(window_matches),
+    )
+
+
+with c2:
+    st.metric(
+        "OVER 2.5",
+        over_count,
+    )
+
+
+with c3:
+    st.metric(
+        "UNDER 2.5",
+        under_count,
+    )
+
+
+with c4:
+    st.metric(
+        "NEUTRAL",
+        neutral_count,
+    )
+
+
+# ============================================================
+# NO MATCH
+# ============================================================
+
+if not window_matches:
+
+    st.warning(
+        "⚠️ လက်ရှိ 12:00 PM MMT → နောက်နေ့ 12:00 PM MMT "
+        "အတွင်း selected league တွေအတွက် match data မရှိသေးပါ။"
+    )
+
+    st.stop()
+
+
+# ============================================================
+# MATCH DISPLAY
+# ============================================================
+
+st.markdown(
+    "## ⚽ Matches"
+)
+
+
+for match in window_matches:
+
+    home = match.get(
         "home",
-        "Unknown Home"
+        "Unknown",
     )
 
-    a_name = m.get(
+    away = match.get(
         "away",
-        "Unknown Away"
+        "Unknown",
     )
 
-    l_name = m.get(
+    league = match.get(
         "league",
-        "Unknown League"
+        "Unknown League",
     )
 
-    country = m.get(
+    country = match.get(
         "country",
-        ""
+        "",
     )
 
-    sig = m.get(
+    date = match.get(
+        "date",
+        "",
+    )
+
+    time = match.get(
+        "time",
+        "",
+    )
+
+    signal = match.get(
         "signal",
-        "NEUTRAL"
+        "DATA_UNAVAILABLE",
     )
 
-    prob = m.get(
+    prob = match.get(
         "prob",
-        m.get(
-            "probability",
-            None
-        )
+        None,
     )
 
-    edge = m.get(
+    edge = match.get(
         "edge",
-        None
+        None,
     )
 
-    hs = m.get(
+    model_status = match.get(
+        "model_status",
+        "",
+    )
+
+    # --------------------------------------------------------
+    # SIGNAL DISPLAY
+    # --------------------------------------------------------
+
+    if signal == "OVER_2_5":
+
+        signal_text = "🟢 OVER 2.5"
+        signal_class = "signal-over"
+
+    elif signal == "UNDER_2_5":
+
+        signal_text = "🔵 UNDER 2.5"
+        signal_class = "signal-under"
+
+    elif signal == "NEUTRAL":
+
+        signal_text = "⚪ NEUTRAL"
+        signal_class = "signal-neutral"
+
+    else:
+
+        signal_text = "⚠️ DATA UNAVAILABLE"
+        signal_class = "signal-neutral"
+
+
+    # --------------------------------------------------------
+    # PROBABILITY
+    # --------------------------------------------------------
+
+    if prob is None:
+
+        prob_text = "N/A"
+
+    else:
+
+        prob_text = f"{prob}%"
+
+
+    # --------------------------------------------------------
+    # EDGE
+    # --------------------------------------------------------
+
+    if edge is None:
+
+        edge_text = "N/A"
+
+    else:
+
+        edge_text = f"{edge}%"
+
+
+    # --------------------------------------------------------
+    # CARD
+    # --------------------------------------------------------
+
+    st.markdown(
+        '<div class="match-card">'
+        f'<div style="color:#9aa4b2;">'
+        f'🏆 {league}'
+        f'{(" • " + country) if country else ""}'
+        '</div>'
+        '<br>'
+        f'<div class="team-name">'
+        f'{home}  vs  {away}'
+        '</div>'
+        '<div class="match-time">'
+        f'📅 {date} &nbsp;&nbsp; '
+        f'🕐 {time} MMT'
+        '</div>'
+        '<br>'
+        f'<div class="{signal_class}">'
+        f'{signal_text}'
+        '</div>'
+        '<br>'
+        f'<div>Model Probability: <b>{prob_text}</b></div>'
+        f'<div>Model Edge: <b>{edge_text}</b></div>'
+        f'<div style="color:#9aa4b2;">'
+        f'Model: {model_status}'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+    # ========================================================
+    # STATS
+    # ========================================================
+
+    h_stats = match.get(
         "h_stats",
         {}
     )
 
-    as_ = m.get(
+    a_stats = match.get(
         "a_stats",
         {}
     )
 
 
-    if not isinstance(
-        hs,
-        dict
-    ):
-
-        hs = {}
-
-
-    if not isinstance(
-        as_,
-        dict
-    ):
-
-        as_ = {}
-
-
-    # --------------------------------------------------------
-    # DATA AVAILABILITY
-    # --------------------------------------------------------
-
-    home_available = is_available(
-        hs
-    )
-
-    away_available = is_available(
-        as_
-    )
-
-    data_available = (
-        home_available
-        and away_available
-    )
-
-
-    # --------------------------------------------------------
-    # EXPANDER TITLE
-    # --------------------------------------------------------
-
-    expander_title = (
-        f"🏆 {l_name}"
-        f"  |  ⏰ {m.get('time', 'N/A')} MMT"
-        f"  |  ⚽ {h_name} vs {a_name}"
-        f"  [{sig}]"
-    )
-
-
-    with st.expander(
-        expander_title,
-        expanded=(
-            sig in [
-                "OVER_2_5",
-                "UNDER_2_5"
-            ]
-        )
-    ):
-
-
-        # ====================================================
-        # MATCH HEADER
-        # ====================================================
-
-        c1, c2 = st.columns(
-            [2, 1]
-        )
-
-
-        # ----------------------------------------------------
-        # LEFT
-        # ----------------------------------------------------
-
-        with c1:
-
-            st.markdown(
-                f"### ⚽ {h_name} vs {a_name}"
-            )
-
-            country_text = ""
-
-            if country:
-
-                country_text = (
-                    f" ({country})"
-                )
-
-            st.caption(
-                f"🏆 {l_name}"
-                f"{country_text}"
-                f" | ⏰ {m.get('time', 'N/A')} MMT"
-            )
-
-
-        # ----------------------------------------------------
-        # RIGHT
-        # ----------------------------------------------------
-
-        with c2:
-
-            if sig == "OVER_2_5":
-
-                st.markdown(
-                    """
-                    <div class="badge-over">
-                    ⭐⭐⭐⭐⭐ OVER 2.5 TARGET
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            elif sig == "UNDER_2_5":
-
-                st.markdown(
-                    """
-                    <div class="badge-under">
-                    ⭐⭐⭐⭐⭐ UNDER 2.5 TARGET
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            elif sig == "DATA_UNAVAILABLE":
-
-                st.markdown(
-                    """
-                    <div class="badge-unavailable">
-                    ⚠️ DATA UNAVAILABLE
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            else:
-
-                st.markdown(
-                    """
-                    <div class="badge-neutral">
-                    ⚪ NEUTRAL
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-
-            prob_display = safe_probability(
-                prob
-            )
-
-            edge_display = safe_edge(
-                edge
-            )
-
-
-            st.write(
-                f"**Probability:** "
-                f"{prob_display}"
-                f" | "
-                f"**Edge:** "
-                f"{edge_display}"
-            )
-
-
-        # ====================================================
-        # DATA STATUS
-        # ====================================================
-
-        st.divider()
-
-
-        if not data_available:
-
-            home_reason = get_reason(
-                hs
-            )
-
-            away_reason = get_reason(
-                as_
-            )
-
-            st.markdown(
-                f"""
-                <div class="data-warning">
-
-                <b>
-                ⚠️ MODEL DATA UNAVAILABLE
-                </b>
-
-                <br><br>
-
-                🏠 Home Data:
-                <b>{home_reason}</b>
-
-                <br>
-
-                ✈️ Away Data:
-                <b>{away_reason}</b>
-
-                <br><br>
-
-                Model Probability နှင့် Edge ကို
-                <b>မယုံကြည်ရသော data ဖြင့် မတွက်ပါ</b>။
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        else:
-
-            home_sample = get_sample_size(
-                hs
-            )
-
-            away_sample = get_sample_size(
-                as_
-            )
-
-            st.markdown(
-                f"""
-                <div class="data-success">
-
-                ✅ Home data နှင့် Away data ရရှိပါသည်။
-
-                <br>
-
-                🏠 Home Sample:
-                <b>{home_sample}</b>
-
-                &nbsp;&nbsp;
-
-                ✈️ Away Sample:
-                <b>{away_sample}</b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ====================================================
-        # STATS TITLE
-        # ====================================================
-
-        st.markdown(
-            f"""
-            #### 🏠 {h_name}
-            (Home L5)
-            vs
-            ✈️ {a_name}
-            (Away L5)
-            """
-        )
-
-
-        # ====================================================
-        # STAT VALUES
-        # ====================================================
-
-        home_over = safe_pct(
-            hs.get(
-                "over_pct"
-            )
-        )
-
-        away_over = safe_pct(
-            as_.get(
-                "over_pct"
-            )
-        )
-
-        home_under = safe_pct(
-            hs.get(
-                "under_pct"
-            )
-        )
-
-        away_under = safe_pct(
-            as_.get(
-                "under_pct"
-            )
-        )
-
-        home_btts = safe_pct(
-            hs.get(
-                "btts_pct"
-            )
-        )
-
-        away_btts = safe_pct(
-            as_.get(
-                "btts_pct"
-            )
-        )
-
-
-        # ====================================================
-        # OVER / UNDER / BTTS
-        # ====================================================
-
-        b1, b2, b3, b4 = st.columns(
-            4
-        )
-
-
-        # ----------------------------------------------------
-        # HOME OVER
-        # ----------------------------------------------------
-
-        with b1:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    HOME L5 OVER 2.5
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#58a6ff;
-                        font-size:18px;
-                    ">
-                        {home_over}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ----------------------------------------------------
-        # AWAY OVER
-        # ----------------------------------------------------
-
-        with b2:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    AWAY L5 OVER 2.5
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#58a6ff;
-                        font-size:18px;
-                    ">
-                        {away_over}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ----------------------------------------------------
-        # HOME BTTS
-        # ----------------------------------------------------
-
-        with b3:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    HOME L5 BTTS
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#00e676;
-                        font-size:18px;
-                    ">
-                        {home_btts}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ----------------------------------------------------
-        # AWAY BTTS
-        # ----------------------------------------------------
-
-        with b4:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    AWAY L5 BTTS
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#00e676;
-                        font-size:18px;
-                    ">
-                        {away_btts}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ====================================================
-        # UNDER STATS
-        # ====================================================
-
-        st.write("")
-
-        u1, u2 = st.columns(2)
-
-
-        with u1:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    HOME L5 UNDER 2.5
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#ff7b72;
-                        font-size:18px;
-                    ">
-                        {home_under}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        with u2:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    AWAY L5 UNDER 2.5
-                    </span>
-
-                    <br>
-
-                    <b style="
-                        color:#ff7b72;
-                        font-size:18px;
-                    ">
-                        {away_under}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ====================================================
-        # GOALS AVERAGES
-        # ====================================================
-
-        st.write("")
-
-        st.markdown(
-            "##### 📊 Goals Averages"
-        )
-
-
-        gf_home = safe_number(
-            hs.get(
-                "gf_avg"
-            )
-        )
-
-        ga_home = safe_number(
-            hs.get(
-                "ga_avg"
-            )
-        )
-
-        gf_away = safe_number(
-            as_.get(
-                "gf_avg"
-            )
-        )
-
-        ga_away = safe_number(
-            as_.get(
-                "ga_avg"
-            )
-        )
-
-
-        g1, g2, g3, g4 = st.columns(
-            4
-        )
-
-
-        with g1:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    HOME GF AVG
-                    </span>
-
-                    <br>
-
-                    <b style="font-size:18px;">
-                        {gf_home}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        with g2:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    HOME GA AVG
-                    </span>
-
-                    <br>
-
-                    <b style="font-size:18px;">
-                        {ga_home}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        with g3:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    AWAY GF AVG
-                    </span>
-
-                    <br>
-
-                    <b style="font-size:18px;">
-                        {gf_away}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        with g4:
-
-            st.markdown(
-                f"""
-                <div class="stat-box">
-
-                    <span class="small-note">
-                    AWAY GA AVG
-                    </span>
-
-                    <br>
-
-                    <b style="font-size:18px;">
-                        {ga_away}
-                    </b>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-        # ====================================================
-        # RECENT MATCHES
-        # ====================================================
-
-        st.write("")
-
-        st.markdown(
-            "##### 📜 Recent Home / Away Matches"
-        )
-
-
-        sc1, sc2 = st.columns(
-            2
-        )
-
-
-        # ====================================================
-        # HOME RECENT MATCHES
-        # ====================================================
-
-        with sc1:
-
-            st.caption(
-                f"🏠 {h_name} — Last 5 Home Matches"
-            )
-
-            home_scores = hs.get(
-                "scorelines",
-                []
-            )
-
-            if (
-                isinstance(
-                    home_scores,
-                    list
-                )
-                and home_scores
-            ):
-
-                for sc in home_scores:
-
-                    if not isinstance(
-                        sc,
-                        dict
-                    ):
-                        continue
-
-                    date = sc.get(
-                        "date",
-                        "N/A"
-                    )
-
-                    home_team = sc.get(
-                        "home",
-                        "N/A"
-                    )
-
-                    away_team = sc.get(
-                        "away",
-                        "N/A"
-                    )
-
-                    gh = sc.get(
-                        "gh",
-                        "?"
-                    )
-
-                    ga = sc.get(
-                        "ga",
-                        "?"
-                    )
-
-                    total = sc.get(
-                        "total",
-                        sc.get(
-                            "tot",
-                            "?"
-                        )
-                    )
-
-                    st.markdown(
-                        f"""
-                        <div class="score-box">
-
-                        {date}
-                        •
-                        <b>
-                        {home_team}
-                        {gh}
-                        -
-                        {ga}
-                        {away_team}
-                        </b>
-
-                        (
-                        {total}
-                        G
-                        )
-
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-            else:
-
-                st.markdown(
-                    """
-                    <div class="data-warning">
-
-                    ⚠️ Home recent-match data
-                    မရရှိသေးပါ။
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-
-        # ====================================================
-        # AWAY RECENT MATCHES
-        # ====================================================
-
-        with sc2:
-
-            st.caption(
-                f"✈️ {a_name} — Last 5 Away Matches"
-            )
-
-            away_scores = as_.get(
-                "scorelines",
-                []
-            )
-
-            if (
-                isinstance(
-                    away_scores,
-                    list
-                )
-                and away_scores
-            ):
-
-                for sc in away_scores:
-
-                    if not isinstance(
-                        sc,
-                        dict
-                    ):
-                        continue
-
-                    date = sc.get(
-                        "date",
-                        "N/A"
-                    )
-
-                    home_team = sc.get(
-                        "home",
-                        "N/A"
-                    )
-
-                    away_team = sc.get(
-                        "away",
-                        "N/A"
-                    )
-
-                    gh = sc.get(
-                        "gh",
-                        "?"
-                    )
-
-                    ga = sc.get(
-                        "ga",
-                        "?"
-                    )
-
-                    total = sc.get(
-                        "total",
-                        sc.get(
-                            "tot",
-                            "?"
-                        )
-                    )
-
-                    st.markdown(
-                        f"""
-                        <div class="score-box">
-
-                        {date}
-                        •
-                        <b>
-                        {home_team}
-                        {gh}
-                        -
-                        {ga}
-                        {away_team}
-                        </b>
-
-                        (
-                        {total}
-                        G
-                        )
-
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-            else:
-
-                st.markdown(
-                    """
-                    <div class="data-warning">
-
-                    ⚠️ Away recent-match data
-                    မရရှိသေးပါ။
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-
-        # ====================================================
-        # MODEL DETAILS
-        # ====================================================
-
-        st.write("")
+    if h_stats or a_stats:
 
         with st.expander(
-            "🔍 Model / Data Details",
-            expanded=False
+            f"📊 {home} / {away} L5 Data",
+            expanded=False,
         ):
 
-            model_status = m.get(
-                "model_status",
-                "N/A"
-            )
+            left, right = st.columns(2)
 
-            data_warning = m.get(
-                "data_warning",
-                ""
-            )
 
-            st.write(
-                f"**Signal:** {sig}"
-            )
+            with left:
 
-            st.write(
-                f"**Probability:** "
-                f"{safe_probability(prob)}"
-            )
+                st.markdown(
+                    f"### 🏠 {home}"
+                )
 
-            st.write(
-                f"**Edge:** "
-                f"{safe_edge(edge)}"
-            )
+                st.write(
+                    f"Sample: "
+                    f"{h_stats.get('sample_size', 'N/A')}"
+                )
 
-            st.write(
-                f"**Model Status:** "
-                f"{model_status}"
-            )
+                st.write(
+                    f"O2.5: "
+                    f"{h_stats.get('over_pct', 'N/A')}%"
+                )
 
-            if data_warning:
+                st.write(
+                    f"U2.5: "
+                    f"{h_stats.get('under_pct', 'N/A')}%"
+                )
 
-                st.warning(
-                    data_warning
+                st.write(
+                    f"BTTS: "
+                    f"{h_stats.get('btts_pct', 'N/A')}%"
+                )
+
+                st.write(
+                    f"GF Avg: "
+                    f"{h_stats.get('gf_avg', 'N/A')}"
+                )
+
+                st.write(
+                    f"GA Avg: "
+                    f"{h_stats.get('ga_avg', 'N/A')}"
+                )
+
+
+            with right:
+
+                st.markdown(
+                    f"### ✈️ {away}"
+                )
+
+                st.write(
+                    f"Sample: "
+                    f"{a_stats.get('sample_size', 'N/A')}"
+                )
+
+                st.write(
+                    f"O2.5: "
+                    f"{a_stats.get('over_pct', 'N/A')}%"
+                )
+
+                st.write(
+                    f"U2.5: "
+                    f"{a_stats.get('under_pct', 'N/A')}%"
+                )
+
+                st.write(
+                    f"BTTS: "
+                    f"{a_stats.get('btts_pct', 'N/A')}%"
+                )
+
+                st.write(
+                    f"GF Avg: "
+                    f"{a_stats.get('gf_avg', 'N/A')}"
+                )
+
+                st.write(
+                    f"GA Avg: "
+                    f"{a_stats.get('ga_avg', 'N/A')}"
                 )
 
 
 # ============================================================
-# 15. FOOTER
+# MODEL RULES
 # ============================================================
 
-st.divider()
-
-st.caption(
-    "⚽ Pre-Match Over/Under Intelligence Pro "
-    "| API data availability is shown explicitly. "
-    "| No fake 50% fallback values are used."
+st.markdown(
+    "## 🧠 Current Model Rules"
 )
+
+
+with st.expander(
+    "View Over / Under rules",
+    expanded=False,
+):
+
+    st.markdown(
+        """
+### 🟢 OVER 2.5
+
+- Home L5 O2.5 ≥ 60%
+- Away L5 O2.5 ≥ 60%
+- Home GF > 1.5
+- Home GA > 1.0
+- Away GF > 1.0
+- Away GA > 1.0
+- BTTS ≥ 60%
+- Model Edge ≥ 5%
+
+### 🔵 UNDER 2.5
+
+- Home L5 U2.5 ≥ 60%
+- Away L5 U2.5 ≥ 60%
+- Home GF < 1.3
+- Home GA < 1.0
+- Away GF < 1.1
+- Away GA < 1.2
+- BTTS < 50%
+- Model Edge ≥ 5%
+
+### Important
+
+xG is **NOT used**.
+
+The API data available in the current setup does not provide the required xG data, so the model does not calculate or invent xG.
+"""
+    )
+
+
+# ============================================================
+# DATA SOURCE
+# ============================================================
+
+st.markdown(
+    "## 📡 Data Status"
+)
+
+
+source_col1, source_col2 = st.columns(2)
+
+
+with source_col1:
+
+    st.markdown(
+        '<div class="info-box">'
+        '<div style="color:#9aa4b2;">DATA FILE</div>'
+        '<div style="font-size:18px;font-weight:700;">'
+        f'{OUTPUT_FILE}'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+with source_col2:
+
+    updated_at = data.get(
+        "updated_at",
+        "Unknown",
+    )
+
+    st.markdown(
+        '<div class="info-box">'
+        '<div style="color:#9aa4b2;">LAST UPDATE</div>'
+        '<div style="font-size:18px;font-weight:700;">'
+        f'{updated_at}'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# WARNING
+# ============================================================
+
+st.markdown(
+    '<div class="warning-box">'
+    '⚠️ Historical data / current-data limitations '
+    'သည် matches_data.json ထုတ်ပေးတဲ့ fetch script ပေါ်မှာ '
+    'မူတည်ပါတယ်။ '
+    'xG ကို မသုံးထားပါ။'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.title("⚙️ Scanner")
+
+    st.write(
+        "Myanmar Time"
+    )
+
+    st.write(
+        now_mmt.strftime(
+            "%Y-%m-%d %I:%M %p"
+        )
+    )
+
+    st.divider()
+
+    st.write(
+        "Search Window"
+    )
+
+    st.write(
+        window_start.strftime(
+            "%Y-%m-%d %I:%M %p"
+        )
+    )
+
+    st.write("→")
+
+    st.write(
+        window_end.strftime(
+            "%Y-%m-%d %I:%M %p"
+        )
+    )
+
+    st.divider()
+
+    st.write(
+        "12:00 PM MMT → 12:00 PM MMT"
+    )
+
+    st.write(
+        f"Selected Leagues: "
+        f"{len(selected_leagues)}"
+    )
+
+    st.write(
+        f"Matches Found: "
+        f"{len(window_matches)}"
+    )
+
+    st.divider()
+
+    if st.button(
+        "🔄 Refresh",
+        use_container_width=True,
+    ):
+
+        st.rerun()
