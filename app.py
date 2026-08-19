@@ -1,1680 +1,22 @@
-import os
-import time
-from datetime import datetime, timedelta, timezone
-
-import requests
 import streamlit as st
-
+import requests
+from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
+import pandas as pd
 
 # ============================================================
-# PAGE CONFIG
+# APP CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="Football Prematch Scanner",
+    page_title="Football Match Finder",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-
-# ============================================================
-# CONFIG
-# ============================================================
-
 API_BASE = "https://v3.football.api-sports.io"
-
-# ------------------------------------------------------------
-# Myanmar Time
-# ------------------------------------------------------------
-
-MMT_TZ = timezone(timedelta(hours=6, minutes=30))
-
-# ------------------------------------------------------------
-# Search window
-#
-# TODAY 12:00 PM MMT
-#       ->
-# TOMORROW 12:00 PM MMT
-# ------------------------------------------------------------
-
-SEARCH_START_HOUR = 12
-
-# ------------------------------------------------------------
-# Historical proxy
-#
-# Your Free API setup previously tested successfully with 2024.
-# This is intentionally kept as the historical proxy.
-# ------------------------------------------------------------
-
-HISTORY_SEASON = 2024
-
-# ------------------------------------------------------------
-# Maximum matches to analyse
-# ------------------------------------------------------------
-
-MAX_MATCHES_TO_ANALYZE = 5
-
-# ------------------------------------------------------------
-# API safety
-#
-# Stop this app after 80 requests in ONE RUN.
-# ------------------------------------------------------------
-
-MAX_API_CALLS_PER_RUN = 80
-
-# If API itself reports very low remaining quota,
-# stop before making another request.
-MIN_REMAINING_QUOTA = 10
-
-# API-Football free plan is currently 10 requests/minute.
-# We use a small delay between calls.
-API_DELAY_SECONDS = 1.0
-
-# ------------------------------------------------------------
-# Request timeout
-# ------------------------------------------------------------
-
-REQUEST_TIMEOUT = 30
-
-
-# ============================================================
-# API KEY
-# ============================================================
-
-def load_api_keys():
-
-    # --------------------------------------------------------
-    # Streamlit Cloud secrets
-    # --------------------------------------------------------
-
-    try:
-        secret_value = st.secrets.get("API_KEYS_POOL", "")
-    except Exception:
-        secret_value = ""
-
-    # --------------------------------------------------------
-    # Environment variable
-    # --------------------------------------------------------
-
-    env_value = os.environ.get(
-        "API_KEYS_POOL",
-        ""
-    )
-
-    raw_keys = (
-        secret_value
-        or env_value
-    )
-
-    if not raw_keys:
-        st.error(
-            "❌ API_KEYS_POOL မတွေ့ပါ။ "
-            "Streamlit Secrets သို့မဟုတ် Environment Variable "
-            "ထဲတွင် API_KEYS_POOL ထည့်ပေးပါ။"
-        )
-        st.stop()
-
-    keys = [
-        key.strip()
-        for key in str(raw_keys).split(",")
-        if key.strip()
-    ]
-
-    if not keys:
-        st.error(
-            "❌ API key မတွေ့ပါ။"
-        )
-        st.stop()
-
-    return keys
-
-
-API_KEYS = load_api_keys()
-
-
-# ============================================================
-# SESSION STATE
-# ============================================================
-
-if "api_calls" not in st.session_state:
-    st.session_state.api_calls = 0
-
-if "remaining_quota" not in st.session_state:
-    st.session_state.remaining_quota = None
-
-if "current_key_index" not in st.session_state:
-    st.session_state.current_key_index = 0
-
-if "league_catalog" not in st.session_state:
-    st.session_state.league_catalog = None
-
-if "last_scan_results" not in st.session_state:
-    st.session_state.last_scan_results = []
-
-if "scan_message" not in st.session_state:
-    st.session_state.scan_message = ""
-
-
-# ============================================================
-# API HELPERS
-# ============================================================
-
-def get_current_api_key():
-
-    index = st.session_state.current_key_index
-
-    if index >= len(API_KEYS):
-        index = 0
-        st.session_state.current_key_index = 0
-
-    return API_KEYS[index]
-
-
-def rotate_api_key():
-
-    if len(API_KEYS) <= 1:
-        return
-
-    st.session_state.current_key_index = (
-        st.session_state.current_key_index + 1
-    ) % len(API_KEYS)
-
-
-def api_request(
-    endpoint,
-    params=None,
-    purpose=""
-):
-
-    # --------------------------------------------------------
-    # LOCAL HARD LIMIT
-    # --------------------------------------------------------
-
-    if (
-        st.session_state.api_calls
-        >= MAX_API_CALLS_PER_RUN
-    ):
-
-        st.error(
-            "🛑 API SAFETY STOP\n\n"
-            f"ဒီ run အတွင်း API request "
-            f"{MAX_API_CALLS_PER_RUN} ခု ပြည့်သွားပါပြီ။"
-        )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # QUOTA SAFETY
-    # --------------------------------------------------------
-
-    remaining = st.session_state.remaining_quota
-
-    if (
-        remaining is not None
-        and remaining <= MIN_REMAINING_QUOTA
-    ):
-
-        st.warning(
-            "🛑 API quota နည်းနေသောကြောင့် "
-            "request ထပ်မခေါ်တော့ပါ။"
-        )
-
-        return None
-
-
-    url = f"{API_BASE}/{endpoint}"
-
-    headers = {
-        "x-apisports-key": get_current_api_key(),
-        "Accept": "application/json",
-    }
-
-
-    # --------------------------------------------------------
-    # Small delay
-    # --------------------------------------------------------
-
-    if st.session_state.api_calls > 0:
-        time.sleep(API_DELAY_SECONDS)
-
-
-    st.session_state.api_calls += 1
-
-
-    try:
-
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params or {},
-            timeout=REQUEST_TIMEOUT,
-        )
-
-    except requests.RequestException as exc:
-
-        st.warning(
-            f"⚠️ API connection error: {exc}"
-        )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # QUOTA HEADERS
-    # --------------------------------------------------------
-
-    remaining_headers = [
-        "x-ratelimit-requests-remaining",
-        "X-RateLimit-Requests-Remaining",
-    ]
-
-    for header_name in remaining_headers:
-
-        value = response.headers.get(
-            header_name
-        )
-
-        if value is not None:
-
-            try:
-                st.session_state.remaining_quota = int(
-                    value
-                )
-
-            except ValueError:
-                pass
-
-            break
-
-
-    # --------------------------------------------------------
-    # 401 / 403
-    # --------------------------------------------------------
-
-    if response.status_code in [401, 403]:
-
-        if len(API_KEYS) > 1:
-
-            rotate_api_key()
-
-            st.warning(
-                "⚠️ API key permission error ဖြစ်နေသဖြင့် "
-                "နောက် API key သို့ ပြောင်းပါမည်။"
-            )
-
-        else:
-
-            st.error(
-                "❌ API key authentication / permission error."
-            )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # 429
-    # --------------------------------------------------------
-
-    if response.status_code == 429:
-
-        st.warning(
-            "🛑 API rate limit (429) ရရှိပါသည်။ "
-            "Request များကို ရပ်ထားပါသည်။"
-        )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # Other HTTP errors
-    # --------------------------------------------------------
-
-    if response.status_code != 200:
-
-        st.warning(
-            f"❌ API HTTP error: "
-            f"{response.status_code}"
-        )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # JSON
-    # --------------------------------------------------------
-
-    try:
-
-        data = response.json()
-
-    except Exception:
-
-        st.warning(
-            "❌ API response သည် JSON မဟုတ်ပါ။"
-        )
-
-        return None
-
-
-    # --------------------------------------------------------
-    # API errors
-    # --------------------------------------------------------
-
-    errors = data.get(
-        "errors",
-        {}
-    )
-
-    if errors:
-
-        st.warning(
-            f"❌ API error: {errors}"
-        )
-
-        return None
-
-
-    return data
-
-
-# ============================================================
-# TIME WINDOW
-# ============================================================
-
-def get_search_window():
-
-    now_mmt = datetime.now(
-        MMT_TZ
-    )
-
-    start = datetime(
-        now_mmt.year,
-        now_mmt.month,
-        now_mmt.day,
-        SEARCH_START_HOUR,
-        0,
-        0,
-        tzinfo=MMT_TZ,
-    )
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    #
-    # If current time is already after today's 12 PM,
-    # search starts TODAY 12 PM.
-    #
-    # If current time is before today's 12 PM,
-    # search still starts TODAY 12 PM.
-    #
-    # This is intentionally fixed to:
-    # TODAY 12:00 PM -> TOMORROW 12:00 PM
-    # --------------------------------------------------------
-
-    end = start + timedelta(
-        days=1
-    )
-
-    return start, end
-
-
-# ============================================================
-# LEAGUE CATALOG
-# ============================================================
-
-def fetch_league_catalog():
-
-    data = api_request(
-        "leagues",
-        params={
-            "season": 2026,
-        },
-        purpose="Load 2026 league catalogue",
-    )
-
-    if data is None:
-        return []
-
-    response = data.get(
-        "response",
-        []
-    )
-
-    catalog = []
-
-    seen = set()
-
-    for item in response:
-
-        league = item.get(
-            "league",
-            {}
-        )
-
-        country = item.get(
-            "country",
-            {}
-        )
-
-        league_id = league.get(
-            "id"
-        )
-
-        league_name = league.get(
-            "name"
-        )
-
-        league_type = league.get(
-            "type",
-            ""
-        )
-
-        country_name = country.get(
-            "name",
-            "Unknown"
-        )
-
-        if not league_id:
-            continue
-
-        if not league_name:
-            continue
-
-        unique_key = (
-            league_id,
-            league_name,
-            country_name,
-        )
-
-        if unique_key in seen:
-            continue
-
-        seen.add(unique_key)
-
-        catalog.append(
-            {
-                "id": int(league_id),
-                "name": str(league_name),
-                "country": str(country_name),
-                "type": str(league_type),
-            }
-        )
-
-    catalog.sort(
-        key=lambda x: (
-            x["country"].lower(),
-            x["name"].lower(),
-        )
-    )
-
-    return catalog
-
-
-def ensure_league_catalog():
-
-    if (
-        st.session_state.league_catalog
-        is not None
-    ):
-        return st.session_state.league_catalog
-
-    with st.spinner(
-        "🏆 League list ကို API မှ ရယူနေပါသည်..."
-    ):
-
-        catalog = fetch_league_catalog()
-
-    if not catalog:
-
-        return []
-
-    st.session_state.league_catalog = catalog
-
-    return catalog
-
-
-# ============================================================
-# LEAGUE DISPLAY HELPERS
-# ============================================================
-
-def league_label(item):
-
-    return (
-        f"{item['name']} "
-        f"— {item['country']} "
-        f"[{item['type']}]"
-    )
-
-
-def country_options(catalog):
-
-    countries = sorted(
-        {
-            item["country"]
-            for item in catalog
-            if item.get("country")
-        },
-        key=lambda x: x.lower(),
-    )
-
-    return countries
-
-
-# ============================================================
-# FIXTURE FETCH
-# ============================================================
-
-def fetch_fixtures_for_date(
-    date_string
-):
-
-    return api_request(
-        "fixtures",
-        params={
-            "date": date_string,
-            "timezone": "Asia/Yangon",
-        },
-        purpose=(
-            f"Fixtures for {date_string} "
-            f"MMT"
-        ),
-    )
-
-
-def fixture_is_in_window(
-    fixture,
-    start,
-    end
-):
-
-    fixture_data = fixture.get(
-        "fixture",
-        {}
-    )
-
-    status = fixture_data.get(
-        "status",
-        {}
-    ).get(
-        "short"
-    )
-
-    if status not in [
-        "NS",
-        "TBD",
-    ]:
-        return False
-
-
-    fixture_date = fixture_data.get(
-        "date"
-    )
-
-    if not fixture_date:
-        return False
-
-
-    try:
-
-        dt = datetime.fromisoformat(
-            fixture_date
-        )
-
-    except Exception:
-
-        return False
-
-
-    if dt.tzinfo is None:
-
-        dt = dt.replace(
-            tzinfo=timezone.utc
-        )
-
-
-    dt_mmt = dt.astimezone(
-        MMT_TZ
-    )
-
-
-    return (
-        start
-        <= dt_mmt
-        <= end
-    )
-
-
-def collect_selected_fixtures(
-    selected_league_ids,
-    start,
-    end
-):
-
-    date_1 = start.strftime(
-        "%Y-%m-%d"
-    )
-
-    date_2 = end.strftime(
-        "%Y-%m-%d"
-    )
-
-
-    raw_fixtures = []
-
-
-    # --------------------------------------------------------
-    # TODAY
-    # --------------------------------------------------------
-
-    data_today = fetch_fixtures_for_date(
-        date_1
-    )
-
-    if data_today:
-
-        raw_fixtures.extend(
-            data_today.get(
-                "response",
-                []
-            )
-        )
-
-
-    # --------------------------------------------------------
-    # TOMORROW
-    # --------------------------------------------------------
-
-    if date_2 != date_1:
-
-        data_tomorrow = (
-            fetch_fixtures_for_date(
-                date_2
-            )
-        )
-
-        if data_tomorrow:
-
-            raw_fixtures.extend(
-                data_tomorrow.get(
-                    "response",
-                    []
-                )
-            )
-
-
-    # --------------------------------------------------------
-    # LOCAL FILTER
-    #
-    # Important:
-    # We DO NOT call the API separately for every league.
-    #
-    # We fetch date fixtures and filter league IDs locally.
-    # This saves a lot of API calls.
-    # --------------------------------------------------------
-
-    selected = []
-
-    seen_ids = set()
-
-    for fixture in raw_fixtures:
-
-        fixture_data = fixture.get(
-            "fixture",
-            {}
-        )
-
-        league_data = fixture.get(
-            "league",
-            {}
-        )
-
-        fixture_id = fixture_data.get(
-            "id"
-        )
-
-        league_id = league_data.get(
-            "id"
-        )
-
-        if not fixture_id:
-            continue
-
-        if fixture_id in seen_ids:
-            continue
-
-        seen_ids.add(
-            fixture_id
-        )
-
-
-        if league_id not in selected_league_ids:
-            continue
-
-
-        if not fixture_is_in_window(
-            fixture,
-            start,
-            end
-        ):
-            continue
-
-
-        home = fixture.get(
-            "teams",
-            {}
-        ).get(
-            "home",
-            {}
-        )
-
-        away = fixture.get(
-            "teams",
-            {}
-        ).get(
-            "away",
-            {}
-        )
-
-
-        if not home.get("id"):
-            continue
-
-        if not away.get("id"):
-            continue
-
-
-        selected.append(
-            fixture
-        )
-
-
-    selected.sort(
-        key=lambda x: x.get(
-            "fixture",
-            {}
-        ).get(
-            "date",
-            ""
-        )
-    )
-
-
-    return selected
-
-
-# ============================================================
-# TEAM HISTORY
-# ============================================================
-
-def get_team_history(
-    team_id,
-    team_name,
-    venue
-):
-
-    cache_key = (
-        f"{team_id}_"
-        f"{venue}_"
-        f"{HISTORY_SEASON}"
-    )
-
-
-    # --------------------------------------------------------
-    # SESSION CACHE
-    # --------------------------------------------------------
-
-    cache = st.session_state.get(
-        "history_cache",
-        {}
-    )
-
-    if cache_key in cache:
-
-        return cache[
-            cache_key
-        ]
-
-
-    # --------------------------------------------------------
-    # API
-    # --------------------------------------------------------
-
-    data = api_request(
-        "fixtures",
-        params={
-            "team": team_id,
-            "season": HISTORY_SEASON,
-        },
-        purpose=(
-            f"{team_name} "
-            f"{venue} L5 history"
-        ),
-    )
-
-
-    if data is None:
-
-        return {
-            "status": "API_ERROR",
-            "sample_size": 0,
-            "over_pct": None,
-            "under_pct": None,
-            "btts_pct": None,
-            "gf_avg": None,
-            "ga_avg": None,
-            "scorelines": [],
-        }
-
-
-    fixtures = data.get(
-        "response",
-        []
-    )
-
-
-    finished = []
-
-
-    for fixture in fixtures:
-
-        status = (
-            fixture
-            .get("fixture", {})
-            .get("status", {})
-            .get("short")
-        )
-
-
-        if status not in [
-            "FT",
-            "AET",
-            "PEN",
-        ]:
-            continue
-
-
-        teams = fixture.get(
-            "teams",
-            {}
-        )
-
-        home = teams.get(
-            "home",
-            {}
-        )
-
-        away = teams.get(
-            "away",
-            {}
-        )
-
-        goals = fixture.get(
-            "goals",
-            {}
-        )
-
-
-        home_id = home.get(
-            "id"
-        )
-
-        away_id = away.get(
-            "id"
-        )
-
-        home_goals = goals.get(
-            "home"
-        )
-
-        away_goals = goals.get(
-            "away"
-        )
-
-
-        if home_goals is None:
-            continue
-
-        if away_goals is None:
-            continue
-
-
-        # ----------------------------------------------------
-        # VENUE FILTER
-        # ----------------------------------------------------
-
-        if venue == "HOME":
-
-            if home_id != team_id:
-                continue
-
-        elif venue == "AWAY":
-
-            if away_id != team_id:
-                continue
-
-
-        finished.append(
-            {
-                "date": fixture
-                .get(
-                    "fixture",
-                    {}
-                )
-                .get(
-                    "date",
-                    ""
-                ),
-
-                "home": home.get(
-                    "name",
-                    "Unknown"
-                ),
-
-                "away": away.get(
-                    "name",
-                    "Unknown"
-                ),
-
-                "home_id": home_id,
-
-                "away_id": away_id,
-
-                "gh": int(
-                    home_goals
-                ),
-
-                "ga": int(
-                    away_goals
-                ),
-            }
-        )
-
-
-    finished.sort(
-        key=lambda x: x["date"],
-        reverse=True
-    )
-
-
-    selected = finished[:5]
-
-
-    if len(selected) < 5:
-
-        result = {
-            "status": (
-                "INSUFFICIENT_L5_DATA"
-            ),
-            "sample_size": len(
-                selected
-            ),
-            "over_pct": None,
-            "under_pct": None,
-            "btts_pct": None,
-            "gf_avg": None,
-            "ga_avg": None,
-            "scorelines": [],
-        }
-
-        cache[
-            cache_key
-        ] = result
-
-        st.session_state.history_cache = cache
-
-        return result
-
-
-    # --------------------------------------------------------
-    # CALCULATE
-    # --------------------------------------------------------
-
-    over_count = 0
-    btts_count = 0
-
-    gf_total = 0
-    ga_total = 0
-
-    scorelines = []
-
-
-    for match in selected:
-
-        total_goals = (
-            match["gh"]
-            + match["ga"]
-        )
-
-
-        if total_goals >= 3:
-
-            over_count += 1
-
-
-        if (
-            match["gh"] > 0
-            and match["ga"] > 0
-        ):
-
-            btts_count += 1
-
-
-        if (
-            match["home_id"]
-            == team_id
-        ):
-
-            gf_total += match[
-                "gh"
-            ]
-
-            ga_total += match[
-                "ga"
-            ]
-
-        else:
-
-            gf_total += match[
-                "ga"
-            ]
-
-            ga_total += match[
-                "gh"
-            ]
-
-
-        scorelines.append(
-            {
-                "date": match[
-                    "date"
-                ][:10],
-
-                "home": match[
-                    "home"
-                ],
-
-                "away": match[
-                    "away"
-                ],
-
-                "gh": match[
-                    "gh"
-                ],
-
-                "ga": match[
-                    "ga"
-                ],
-
-                "tot": total_goals,
-            }
-        )
-
-
-    count = len(
-        selected
-    )
-
-
-    result = {
-
-        "status": "PROXY_2024_25",
-
-        "data_source": (
-            "API-SPORTS 2024 "
-            "historical proxy"
-        ),
-
-        "sample_size": count,
-
-        "over_pct": round(
-            over_count
-            / count
-            * 100,
-            1
-        ),
-
-        "under_pct": round(
-            (
-                count
-                - over_count
-            )
-            / count
-            * 100,
-            1
-        ),
-
-        "btts_pct": round(
-            btts_count
-            / count
-            * 100,
-            1
-        ),
-
-        "gf_avg": round(
-            gf_total
-            / count,
-            2
-        ),
-
-        "ga_avg": round(
-            ga_total
-            / count,
-            2
-        ),
-
-        "scorelines": scorelines,
-    }
-
-
-    cache[
-        cache_key
-    ] = result
-
-    st.session_state.history_cache = cache
-
-
-    return result
-
-
-# ============================================================
-# MODEL
-# ============================================================
-
-def calculate_model(
-    home_stats,
-    away_stats
-):
-
-    required_status = [
-        "PROXY_2024_25",
-    ]
-
-
-    if (
-        home_stats.get(
-            "status"
-        ) not in required_status
-        or
-        away_stats.get(
-            "status"
-        ) not in required_status
-    ):
-
-        return {
-            "signal": "DATA_UNAVAILABLE",
-            "probability": None,
-            "edge": None,
-            "over_checks": {},
-            "under_checks": {},
-            "model_status": (
-                "INSUFFICIENT_DATA"
-            ),
-        }
-
-
-    if (
-        home_stats.get(
-            "sample_size",
-            0
-        ) < 5
-        or
-        away_stats.get(
-            "sample_size",
-            0
-        ) < 5
-    ):
-
-        return {
-            "signal": "DATA_UNAVAILABLE",
-            "probability": None,
-            "edge": None,
-            "over_checks": {},
-            "under_checks": {},
-            "model_status": (
-                "INSUFFICIENT_L5_DATA"
-            ),
-        }
-
-
-    # ========================================================
-    # OVER 2.5 CONDITIONS
-    #
-    # EXACT LOGIC REQUESTED
-    #
-    # Home L5 O2.5 >= 60%
-    # Away L5 O2.5 >= 60%
-    #
-    # Home GF > 1.5
-    # Home GA > 1.0
-    #
-    # Away GF > 1.0
-    # Away GA > 1.0
-    #
-    # Home BTTS >= 60%
-    # Away BTTS >= 60%
-    #
-    # Model edge > 5%
-    # ========================================================
-
-    over_checks = {
-
-        "home_o25":
-            home_stats[
-                "over_pct"
-            ] >= 60,
-
-        "away_o25":
-            away_stats[
-                "over_pct"
-            ] >= 60,
-
-        "home_gf":
-            home_stats[
-                "gf_avg"
-            ] > 1.5,
-
-        "home_ga":
-            home_stats[
-                "ga_avg"
-            ] > 1.0,
-
-        "away_gf":
-            away_stats[
-                "gf_avg"
-            ] > 1.0,
-
-        "away_ga":
-            away_stats[
-                "ga_avg"
-            ] > 1.0,
-
-        "home_btts":
-            home_stats[
-                "btts_pct"
-            ] >= 60,
-
-        "away_btts":
-            away_stats[
-                "btts_pct"
-            ] >= 60,
-    }
-
-
-    # ========================================================
-    # UNDER 2.5 CONDITIONS
-    #
-    # Home L5 U2.5 >= 60%
-    # Away L5 U2.5 >= 60%
-    #
-    # Home GF < 1.3
-    # Home GA < 1.0
-    #
-    # Away GF < 1.1
-    # Away GA < 1.2
-    #
-    # Home BTTS < 50%
-    # Away BTTS < 50%
-    #
-    # Model edge > 5%
-    # ========================================================
-
-    under_checks = {
-
-        "home_u25":
-            home_stats[
-                "under_pct"
-            ] >= 60,
-
-        "away_u25":
-            away_stats[
-                "under_pct"
-            ] >= 60,
-
-        "home_gf":
-            home_stats[
-                "gf_avg"
-            ] < 1.3,
-
-        "home_ga":
-            home_stats[
-                "ga_avg"
-            ] < 1.0,
-
-        "away_gf":
-            away_stats[
-                "gf_avg"
-            ] < 1.1,
-
-        "away_ga":
-            away_stats[
-                "ga_avg"
-            ] < 1.2,
-
-        "home_btts":
-            home_stats[
-                "btts_pct"
-            ] < 50,
-
-        "away_btts":
-            away_stats[
-                "btts_pct"
-            ] < 50,
-    }
-
-
-    # ========================================================
-    # MODEL PROBABILITY
-    #
-    # NO xG
-    #
-    # Only:
-    # O/U %
-    # BTTS %
-    # GF / GA
-    # ========================================================
-
-    avg_over = (
-        home_stats[
-            "over_pct"
-        ]
-        +
-        away_stats[
-            "over_pct"
-        ]
-    ) / 2
-
-
-    avg_under = (
-        home_stats[
-            "under_pct"
-        ]
-        +
-        away_stats[
-            "under_pct"
-        ]
-    ) / 2
-
-
-    avg_btts = (
-        home_stats[
-            "btts_pct"
-        ]
-        +
-        away_stats[
-            "btts_pct"
-        ]
-    ) / 2
-
-
-    goal_environment = (
-        home_stats[
-            "gf_avg"
-        ]
-        +
-        home_stats[
-            "ga_avg"
-        ]
-        +
-        away_stats[
-            "gf_avg"
-        ]
-        +
-        away_stats[
-            "ga_avg"
-        ]
-    )
-
-
-    # --------------------------------------------------------
-    # Goal score
-    # 5.5 is the maximum environment reference.
-    # --------------------------------------------------------
-
-    goal_score = min(
-        100,
-        (
-            goal_environment
-            / 5.5
-        )
-        * 100
-    )
-
-
-    # --------------------------------------------------------
-    # OVER probability
-    # --------------------------------------------------------
-
-    over_probability = (
-        avg_over * 0.50
-        +
-        avg_btts * 0.20
-        +
-        goal_score * 0.30
-    )
-
-
-    over_probability = round(
-        max(
-            0,
-            min(
-                100,
-                over_probability
-            )
-        ),
-        1
-    )
-
-
-    # --------------------------------------------------------
-    # UNDER probability
-    # --------------------------------------------------------
-
-    under_probability = (
-        avg_under * 0.50
-        +
-        (100 - avg_btts)
-        * 0.20
-        +
-        (100 - goal_score)
-        * 0.30
-    )
-
-
-    under_probability = round(
-        max(
-            0,
-            min(
-                100,
-                under_probability
-            )
-        ),
-        1
-    )
-
-
-    # ========================================================
-    # EDGE
-    #
-    # Baseline = 60%
-    # ========================================================
-
-    over_edge = round(
-        over_probability - 60,
-        1
-    )
-
-    under_edge = round(
-        under_probability - 60,
-        1
-    )
-
-
-    # ========================================================
-    # FINAL QUALIFICATION
-    #
-    # IMPORTANT:
-    # BTTS condition is now a HARD CONDITION.
-    #
-    # This prevents:
-    # Away BTTS = 40%
-    # from still producing OVER_2_5.
-    # ========================================================
-
-    over_all_conditions = (
-        all(
-            over_checks.values()
-        )
-        and
-        over_edge > 5
-    )
-
-
-    under_all_conditions = (
-        all(
-            under_checks.values()
-        )
-        and
-        under_edge > 5
-    )
-
-
-    if over_all_conditions:
-
-        signal = "OVER_2_5"
-        probability = over_probability
-        edge = over_edge
-
-
-    elif under_all_conditions:
-
-        signal = "UNDER_2_5"
-        probability = under_probability
-        edge = under_edge
-
-
-    else:
-
-        signal = "NEUTRAL"
-        probability = max(
-            over_probability,
-            under_probability
-        )
-
-        if (
-            probability
-            == over_probability
-        ):
-
-            edge = over_edge
-
-        else:
-
-            edge = under_edge
-
-
-    return {
-
-        "signal": signal,
-
-        "probability": probability,
-
-        "edge": edge,
-
-        "over_probability":
-            over_probability,
-
-        "under_probability":
-            under_probability,
-
-        "over_edge":
-            over_edge,
-
-        "under_edge":
-            under_edge,
-
-        "over_checks":
-            over_checks,
-
-        "under_checks":
-            under_checks,
-
-        "model_status":
-            "RULE_MODEL_NO_XG",
-    }
-
-
-# ============================================================
-# FORMAT HELPERS
-# ============================================================
-
-def safe_pct(value):
-
-    if value is None:
-        return "—"
-
-    return f"{value:.1f}%"
-
-
-def safe_num(value):
-
-    if value is None:
-        return "—"
-
-    return f"{value:.2f}"
-
-
-def condition_icon(value):
-
-    return "✅" if value else "❌"
-
-
-def format_fixture_time(
-    fixture
-):
-
-    date_string = (
-        fixture
-        .get("fixture", {})
-        .get("date")
-    )
-
-    if not date_string:
-        return "—", "—"
-
-
-    try:
-
-        dt = datetime.fromisoformat(
-            date_string
-        )
-
-        if dt.tzinfo is None:
-
-            dt = dt.replace(
-                tzinfo=timezone.utc
-            )
-
-        dt = dt.astimezone(
-            MMT_TZ
-        )
-
-        return (
-            dt.strftime(
-                "%Y-%m-%d"
-            ),
-            dt.strftime(
-                "%H:%M"
-            ),
-        )
-
-    except Exception:
-
-        return (
-            date_string[:10],
-            date_string[11:16],
-        )
-
+MYANMAR_TZ = ZoneInfo("Asia/Yangon")
 
 # ============================================================
 # CSS
@@ -1683,59 +25,865 @@ def format_fixture_time(
 st.markdown(
     """
     <style>
+    .stApp {
+        background: #0b0e14;
+        color: #f4f6f8;
+    }
 
-    .main-title {
-        font-size: 2.2rem;
+    .block-container {
+        max-width: 1100px;
+        padding-top: 2rem;
+        padding-bottom: 4rem;
+    }
+
+    .title {
+        font-size: 42px;
         font-weight: 800;
-        margin-bottom: 0.2rem;
+        margin-bottom: 5px;
     }
 
     .subtitle {
-        color: #8f98a8;
-        margin-bottom: 1.2rem;
+        color: #9aa4b2;
+        font-size: 16px;
+        margin-bottom: 25px;
     }
 
-    .info-card {
+    .card {
+        background: #171c25;
+        border: 1px solid #303846;
+        border-radius: 18px;
+        padding: 20px;
+        margin-bottom: 18px;
+    }
+
+    .card-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .blue-card {
+        background: #172a42;
+        border-radius: 16px;
         padding: 18px;
-        border-radius: 14px;
-        background: rgba(40, 50, 65, 0.55);
-        border: 1px solid rgba(150, 160, 175, 0.22);
-        margin-bottom: 12px;
+        margin: 15px 0;
+    }
+
+    .success-card {
+        background: #142b20;
+        border: 1px solid #2f6b4a;
+        border-radius: 16px;
+        padding: 18px;
+        margin: 15px 0;
+    }
+
+    .warning-card {
+        background: #3b3b0d;
+        border: 1px solid #676719;
+        border-radius: 16px;
+        padding: 18px;
+        margin: 15px 0;
+    }
+
+    .error-card {
+        background: #3a1d22;
+        border: 1px solid #7a343e;
+        border-radius: 16px;
+        padding: 18px;
+        margin: 15px 0;
     }
 
     .match-card {
-        padding: 20px;
-        border-radius: 16px;
-        background: rgba(30, 36, 47, 0.72);
-        border: 1px solid rgba(150, 160, 175, 0.25);
-        margin-bottom: 16px;
+        background: #151a22;
+        border: 1px solid #303846;
+        border-radius: 18px;
+        padding: 18px;
+        margin-bottom: 14px;
     }
 
-    .signal-over {
-        padding: 8px 14px;
-        border-radius: 10px;
+    .team {
+        font-size: 19px;
+        font-weight: 700;
+    }
+
+    .league-name {
+        color: #8db8ff;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .kickoff {
+        font-size: 20px;
         font-weight: 800;
-        display: inline-block;
     }
 
-    .signal-under {
-        padding: 8px 14px;
-        border-radius: 10px;
-        font-weight: 800;
-        display: inline-block;
+    .small {
+        color: #9aa4b2;
+        font-size: 13px;
     }
 
-    .signal-neutral {
-        padding: 8px 14px;
-        border-radius: 10px;
-        font-weight: 800;
-        display: inline-block;
+    div[data-testid="stSelectbox"] label {
+        font-weight: 700;
     }
 
+    div[data-testid="stTextInput"] label {
+        font-weight: 700;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "api_key" not in st.session_state:
+    st.session_state.api_key = ""
+
+if "league_results" not in st.session_state:
+    st.session_state.league_results = []
+
+if "selected_league" not in st.session_state:
+    st.session_state.selected_league = None
+
+if "matches" not in st.session_state:
+    st.session_state.matches = []
+
+if "last_search" not in st.session_state:
+    st.session_state.last_search = ""
+
+if "api_remaining" not in st.session_state:
+    st.session_state.api_remaining = None
+
+# ============================================================
+# API KEY
+# ============================================================
+
+def get_api_key():
+    """
+    Priority:
+    1. Streamlit secrets
+    2. Session state
+    3. User input
+    """
+
+    key = ""
+
+    try:
+        key = st.secrets.get("API_FOOTBALL_KEY", "")
+    except Exception:
+        key = ""
+
+    if key:
+        return key
+
+    return st.session_state.api_key
+
+
+# ============================================================
+# API REQUEST
+# ============================================================
+
+def api_get(endpoint, params=None):
+    """
+    Safe API-Football GET request.
+
+    Returns:
+        data, headers, error
+    """
+
+    api_key = get_api_key()
+
+    if not api_key:
+        return None, {}, "API key မထည့်ရသေးပါ။"
+
+    url = f"{API_BASE}/{endpoint}"
+
+    headers = {
+        "x-apisports-key": api_key,
+        "Accept": "application/json",
+    }
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params or {},
+            timeout=25,
+        )
+
+    except requests.exceptions.Timeout:
+        return None, {}, "API request timeout ဖြစ်သွားပါတယ်။"
+
+    except requests.exceptions.ConnectionError:
+        return None, {}, "API server ကို ချိတ်ဆက်မရပါ။ Internet connection စစ်ပါ။"
+
+    except Exception as e:
+        return None, {}, f"Request error: {str(e)}"
+
+    remaining = response.headers.get(
+        "x-ratelimit-requests-remaining"
+    )
+
+    if remaining is not None:
+        st.session_state.api_remaining = remaining
+
+    try:
+        data = response.json()
+    except Exception:
+        data = {}
+
+    # --------------------------------------------------------
+    # HTTP errors
+    # --------------------------------------------------------
+
+    if response.status_code == 429:
+        return (
+            None,
+            response.headers,
+            "API quota / rate limit ကျော်သွားပါတယ်။ "
+            "ခဏစောင့်ပြီး ပြန်စမ်းပါ။",
+        )
+
+    if response.status_code >= 400:
+        error_text = ""
+
+        if isinstance(data, dict):
+            error_text = str(data.get("errors", ""))
+
+        return (
+            None,
+            response.headers,
+            f"API HTTP {response.status_code}: {error_text}",
+        )
+
+    # --------------------------------------------------------
+    # API internal errors
+    # --------------------------------------------------------
+
+    if isinstance(data, dict):
+
+        errors = data.get("errors")
+
+        if errors:
+            return (
+                None,
+                response.headers,
+                f"API error: {errors}",
+            )
+
+    return data, response.headers, None
+
+
+# ============================================================
+# MMT TIME
+# ============================================================
+
+def now_mmt():
+    return datetime.now(MYANMAR_TZ)
+
+
+def get_mmt_search_window():
+    """
+    EXACT WINDOW:
+
+    Today 12:00 PM MMT
+        ->
+    Tomorrow 12:00 PM MMT
+    """
+
+    now = now_mmt()
+
+    today = now.date()
+
+    start_dt = datetime.combine(
+        today,
+        time(12, 0),
+        tzinfo=MYANMAR_TZ,
+    )
+
+    end_dt = start_dt + timedelta(days=1)
+
+    return start_dt, end_dt
+
+
+# ============================================================
+# CURRENT SEASON
+# ============================================================
+
+def guess_current_season():
+    """
+    API-Football season is represented by starting year.
+
+    Example:
+        2025/26 = 2025
+        2026/27 = 2026
+
+    This is only a default suggestion.
+    """
+
+    now = now_mmt()
+
+    return now.year
+
+
+# ============================================================
+# SEARCH LEAGUES
+# ============================================================
+
+def search_leagues(search_text):
+    """
+    Search API-Football league catalogue.
+
+    IMPORTANT:
+    We DO NOT send season=current here.
+
+    This prevents the previous:
+        Free plans do not have access to this season
+    error from breaking the League Filter.
+    """
+
+    search_text = search_text.strip()
+
+    if len(search_text) < 3:
+        return [], "အနည်းဆုံး စာလုံး 3 လုံး ရိုက်ပါ။"
+
+    data, headers, error = api_get(
+        "leagues",
+        {
+            "search": search_text,
+        },
+    )
+
+    if error:
+        return [], error
+
+    if not data:
+        return [], "API response မရပါ။"
+
+    response = data.get("response", [])
+
+    results = []
+
+    for item in response:
+
+        league = item.get("league", {})
+        country = item.get("country", {})
+
+        league_id = league.get("id")
+        league_name = league.get("name")
+        league_type = league.get("type")
+        country_name = country.get("name")
+
+        if league_id is None or not league_name:
+            continue
+
+        seasons = item.get("seasons", [])
+
+        season_years = []
+
+        for s in seasons:
+            year = s.get("year")
+
+            if year is not None:
+                season_years.append(year)
+
+        season_years = sorted(
+            list(set(season_years)),
+            reverse=True,
+        )
+
+        results.append(
+            {
+                "id": league_id,
+                "name": league_name,
+                "country": country_name or "",
+                "type": league_type or "",
+                "seasons": season_years,
+            }
+        )
+
+    # Remove duplicates
+    unique = {}
+
+    for r in results:
+        key = (r["id"], r["name"])
+
+        if key not in unique:
+            unique[key] = r
+
+    results = list(unique.values())
+
+    results.sort(
+        key=lambda x: (
+            x["name"].lower(),
+            x["country"].lower(),
+        )
+    )
+
+    return results, None
+
+
+# ============================================================
+# POPULAR LEAGUES
+# ============================================================
+
+POPULAR_LEAGUES = [
+    {
+        "id": 39,
+        "name": "Premier League",
+        "country": "England",
+    },
+    {
+        "id": 140,
+        "name": "La Liga",
+        "country": "Spain",
+    },
+    {
+        "id": 78,
+        "name": "Bundesliga",
+        "country": "Germany",
+    },
+    {
+        "id": 135,
+        "name": "Serie A",
+        "country": "Italy",
+    },
+    {
+        "id": 61,
+        "name": "Ligue 1",
+        "country": "France",
+    },
+    {
+        "id": 88,
+        "name": "Eredivisie",
+        "country": "Netherlands",
+    },
+    {
+        "id": 94,
+        "name": "Primeira Liga",
+        "country": "Portugal",
+    },
+    {
+        "id": 203,
+        "name": "Süper Lig",
+        "country": "Turkey",
+    },
+    {
+        "id": 119,
+        "name": "Superliga",
+        "country": "Denmark",
+    },
+    {
+        "id": 103,
+        "name": "Eliteserien",
+        "country": "Norway",
+    },
+    {
+        "id": 113,
+        "name": "Allsvenskan",
+        "country": "Sweden",
+    },
+    {
+        "id": 106,
+        "name": "Ekstraklasa",
+        "country": "Poland",
+    },
+    {
+        "id": 188,
+        "name": "A-League",
+        "country": "Australia",
+    },
+    {
+        "id": 253,
+        "name": "Major League Soccer",
+        "country": "USA",
+    },
+    {
+        "id": 262,
+        "name": "Liga MX",
+        "country": "Mexico",
+    },
+    {
+        "id": 307,
+        "name": "Saudi Pro League",
+        "country": "Saudi Arabia",
+    },
+    {
+        "id": 98,
+        "name": "J1 League",
+        "country": "Japan",
+    },
+    {
+        "id": 292,
+        "name": "K League 1",
+        "country": "South Korea",
+    },
+    {
+        "id": 71,
+        "name": "Serie A",
+        "country": "Brazil",
+    },
+    {
+        "id": 128,
+        "name": "Liga Profesional Argentina",
+        "country": "Argentina",
+    },
+    {
+        "id": 2,
+        "name": "UEFA Champions League",
+        "country": "World",
+    },
+    {
+        "id": 3,
+        "name": "UEFA Europa League",
+        "country": "World",
+    },
+    {
+        "id": 848,
+        "name": "UEFA Europa Conference League",
+        "country": "World",
+    },
+]
+
+# ============================================================
+# FORMAT LEAGUE OPTION
+# ============================================================
+
+def league_label(item):
+
+    if item.get("country"):
+        return (
+            f'{item["name"]} — '
+            f'{item["country"]} '
+            f'(ID {item["id"]})'
+        )
+
+    return (
+        f'{item["name"]} '
+        f'(ID {item["id"]})'
+    )
+
+
+# ============================================================
+# GET FIXTURES
+# ============================================================
+
+def get_fixtures_for_window(
+    league_id,
+    season,
+    start_dt,
+    end_dt,
+):
+    """
+    Query two calendar dates because our actual window is:
+
+        today 12:00 MMT
+        ->
+        tomorrow 12:00 MMT
+
+    API-Football returns fixture timestamps using the requested
+    timezone.
+    """
+
+    start_date = start_dt.date()
+    end_date = end_dt.date()
+
+    all_matches = []
+
+    dates_to_query = [
+        start_date,
+        end_date,
+    ]
+
+    for d in dates_to_query:
+
+        params = {
+            "league": league_id,
+            "season": season,
+            "date": d.isoformat(),
+            "timezone": "Asia/Yangon",
+        }
+
+        data, headers, error = api_get(
+            "fixtures",
+            params,
+        )
+
+        if error:
+            return [], error
+
+        if not data:
+            continue
+
+        response = data.get("response", [])
+
+        all_matches.extend(response)
+
+    # --------------------------------------------------------
+    # Remove duplicate fixture IDs
+    # --------------------------------------------------------
+
+    unique = {}
+
+    for match in all_matches:
+
+        fixture = match.get("fixture", {})
+
+        fixture_id = fixture.get("id")
+
+        if fixture_id is not None:
+            unique[fixture_id] = match
+
+    all_matches = list(unique.values())
+
+    # --------------------------------------------------------
+    # EXACT MMT WINDOW FILTER
+    # --------------------------------------------------------
+
+    filtered = []
+
+    for match in all_matches:
+
+        fixture = match.get("fixture", {})
+
+        fixture_date = fixture.get("date")
+
+        if not fixture_date:
+            continue
+
+        try:
+            dt = datetime.fromisoformat(
+                fixture_date.replace(
+                    "Z",
+                    "+00:00",
+                )
+            )
+
+            # API already returned Asia/Yangon timezone,
+            # but normalize again for safety.
+            dt_mmt = dt.astimezone(MYANMAR_TZ)
+
+        except Exception:
+            continue
+
+        if start_dt <= dt_mmt < end_dt:
+
+            match["_mmt_datetime"] = dt_mmt
+
+            filtered.append(match)
+
+    filtered.sort(
+        key=lambda x: x["_mmt_datetime"]
+    )
+
+    return filtered, None
+
+
+# ============================================================
+# MATCH STATUS
+# ============================================================
+
+def get_status_text(match):
+
+    status = (
+        match
+        .get("fixture", {})
+        .get("status", {})
+    )
+
+    short = status.get("short", "")
+    long_text = status.get("long", "")
+
+    if short == "NS":
+        return "NOT STARTED"
+
+    if short == "TBD":
+        return "TIME TBD"
+
+    if short in ["1H", "HT", "2H", "ET", "BT", "P"]:
+        return f"LIVE — {long_text}"
+
+    if short in ["FT", "AET", "PEN"]:
+        return f"FINISHED — {long_text}"
+
+    if short == "PST":
+        return "POSTPONED"
+
+    if short == "CANC":
+        return "CANCELLED"
+
+    return long_text or short or "UNKNOWN"
+
+
+# ============================================================
+# MATCH CARD
+# ============================================================
+
+def render_match(match):
+
+    fixture = match.get("fixture", {})
+    league = match.get("league", {})
+    teams = match.get("teams", {})
+    goals = match.get("goals", {})
+
+    home = teams.get("home", {})
+    away = teams.get("away", {})
+
+    home_name = home.get("name", "Home")
+    away_name = away.get("name", "Away")
+
+    home_logo = home.get("logo", "")
+    away_logo = away.get("logo", "")
+
+    league_name = league.get(
+        "name",
+        "Unknown League",
+    )
+
+    country = league.get(
+        "country",
+        "",
+    )
+
+    fixture_id = fixture.get(
+        "id",
+        "",
+    )
+
+    dt_mmt = match.get(
+        "_mmt_datetime"
+    )
+
+    if dt_mmt:
+
+        date_text = dt_mmt.strftime(
+            "%Y-%m-%d"
+        )
+
+        time_text = dt_mmt.strftime(
+            "%I:%M %p"
+        )
+
+    else:
+
+        date_text = "-"
+        time_text = "-"
+
+    status = get_status_text(match)
+
+    home_score = goals.get("home")
+    away_score = goals.get("away")
+
+    score_text = ""
+
+    if home_score is not None or away_score is not None:
+
+        home_score = (
+            "-" if home_score is None
+            else str(home_score)
+        )
+
+        away_score = (
+            "-" if away_score is None
+            else str(away_score)
+        )
+
+        score_text = (
+            f'<div class="kickoff">'
+            f'{home_score} : {away_score}'
+            f'</div>'
+        )
+
+    else:
+
+        score_text = (
+            '<div class="small">'
+            'PRE-MATCH'
+            '</div>'
+        )
+
+    st.markdown(
+        f"""
+        <div class="match-card">
+
+            <div class="league-name">
+                🏆 {league_name}
+                {" — " + country if country else ""}
+            </div>
+
+            <div style="margin-top:10px;">
+                <span class="small">
+                    Fixture ID: {fixture_id}
+                </span>
+            </div>
+
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                gap:20px;
+                margin-top:14px;
+            ">
+
+                <div style="flex:1;">
+                    {
+                        f'<img src="{home_logo}" width="35">'
+                        if home_logo else ""
+                    }
+                    <span class="team">
+                        {home_name}
+                    </span>
+                </div>
+
+                <div style="
+                    text-align:center;
+                    min-width:100px;
+                ">
+
+                    <div class="small">
+                        {date_text} MMT
+                    </div>
+
+                    {score_text}
+
+                    <div class="small">
+                        {time_text}
+                    </div>
+
+                </div>
+
+                <div style="
+                    flex:1;
+                    text-align:right;
+                ">
+
+                    <span class="team">
+                        {away_name}
+                    </span>
+
+                    {
+                        f'<img src="{away_logo}" width="35">'
+                        if away_logo else ""
+                    }
+
+                </div>
+
+            </div>
+
+            <div style="
+                margin-top:14px;
+                color:#9aa4b2;
+                font-size:13px;
+            ">
+                Status: {status}
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
@@ -1743,61 +891,101 @@ st.markdown(
 # ============================================================
 
 st.markdown(
-    '<div class="main-title">⚽ Football Prematch Scanner</div>',
+    '<div class="title">⚽ Football Match Finder</div>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
     '<div class="subtitle">'
-    'Over 2.5 / Under 2.5 • L5 • BTTS • GF/GA • Model Edge'
+    'Myanmar Time based pre-match fixture search'
     '</div>',
     unsafe_allow_html=True,
 )
 
+# ============================================================
+# API KEY SECTION
+# ============================================================
+
+with st.expander(
+    "🔐 API KEY",
+    expanded=False,
+):
+
+    secret_key = ""
+
+    try:
+        secret_key = st.secrets.get(
+            "API_FOOTBALL_KEY",
+            "",
+        )
+    except Exception:
+        pass
+
+    if secret_key:
+
+        st.success(
+            "API key ကို Streamlit Secrets ကနေ ရရှိထားပါတယ်။"
+        )
+
+        st.session_state.api_key = secret_key
+
+    else:
+
+        typed_key = st.text_input(
+            "API-Football API Key",
+            type="password",
+            value=st.session_state.api_key,
+            placeholder="x-apisports-key",
+        )
+
+        if typed_key:
+            st.session_state.api_key = typed_key.strip()
+
+        st.caption(
+            "API key ကို code ထဲ hard-code မလုပ်ထားပါ။"
+        )
+
 
 # ============================================================
-# SEARCH WINDOW DISPLAY
+# STATUS BAR
 # ============================================================
 
-search_start, search_end = (
-    get_search_window()
-)
-
-col1, col2, col3 = st.columns(
-    3
-)
+col1, col2, col3 = st.columns(3)
 
 with col1:
 
     st.markdown(
-        '<div class="info-card">'
-        '<b>🕐 SEARCH WINDOW</b><br><br>'
-        f'{search_start.strftime("%Y-%m-%d %I:%M %p")} '
-        'MMT<br>'
-        '↓<br>'
-        f'{search_end.strftime("%Y-%m-%d %I:%M %p")} '
-        'MMT'
-        '</div>',
+        """
+        <div class="card">
+            <div class="card-title">⚙️ MODE</div>
+            <div>MULTI_LEAGUE_PREMATCH</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-
 
 with col2:
 
+    start_dt, end_dt = get_mmt_search_window()
+
     st.markdown(
-        '<div class="info-card">'
-        '<b>⚙️ MODE</b><br><br>'
-        'MULTI_LEAGUE_PREMATCH'
-        '</div>',
+        f"""
+        <div class="card">
+            <div class="card-title">🕛 MMT SEARCH WINDOW</div>
+            <div>
+                {start_dt.strftime("%Y-%m-%d %I:%M %p")}
+                →
+                {end_dt.strftime("%Y-%m-%d %I:%M %p")}
+                MMT
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-
 with col3:
 
-    remaining = (
-        st.session_state.remaining_quota
-    )
+    remaining = st.session_state.api_remaining
 
     remaining_text = (
         str(remaining)
@@ -1806,14 +994,13 @@ with col3:
     )
 
     st.markdown(
-        '<div class="info-card">'
-        '<b>🛡️ API SAFETY</b><br><br>'
-        f'Run calls: '
-        f'{st.session_state.api_calls}/'
-        f'{MAX_API_CALLS_PER_RUN}'
-        '<br>'
-        f'Remaining: {remaining_text}'
-        '</div>',
+        f"""
+        <div class="card">
+            <div class="card-title">🛡️ API SAFETY</div>
+            <div>Remaining: {remaining_text}</div>
+            <div>Timezone: Asia/Yangon</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -1826,1217 +1013,644 @@ st.markdown(
     "## 🏆 League Filter"
 )
 
-
-# ------------------------------------------------------------
-# Load catalogue
-# ------------------------------------------------------------
-
-catalog = ensure_league_catalog()
-
-
-# ------------------------------------------------------------
-# Refresh button
-# ------------------------------------------------------------
-
-refresh_col1, refresh_col2 = st.columns(
-    [1, 4]
-)
-
-with refresh_col1:
-
-    if st.button(
-        "🔄 Refresh Leagues",
-        use_container_width=True,
-    ):
-
-        st.session_state.league_catalog = None
-
-        st.rerun()
-
-
-if not catalog:
-
-    st.warning(
-        "⚠️ League catalogue မရရှိသေးပါ။ "
-        "API key / quota ကို စစ်ပါ။"
-    )
-
-    st.stop()
-
-
-# ============================================================
-# COUNTRY SELECTOR
-# ============================================================
-
-countries = country_options(
-    catalog
-)
-
-country_choices = [
-    "🌍 All Countries"
-] + countries
-
-
-selected_country = st.selectbox(
-    "Country",
-    country_choices,
-    index=0,
-    key="country_selector",
-    filter_mode="contains",
-)
-
-
-# ============================================================
-# FILTER LEAGUES BY COUNTRY
-# ============================================================
-
-if selected_country == "🌍 All Countries":
-
-    filtered_leagues = catalog
-
-else:
-
-    filtered_leagues = [
-        item
-        for item in catalog
-        if item["country"]
-        == selected_country
-    ]
-
-
-# ============================================================
-# COMPETITION MULTISELECT
-# ============================================================
-
-league_options = [
-    league_label(item)
-    for item in filtered_leagues
-]
-
-
-label_to_item = {
-    league_label(item): item
-    for item in filtered_leagues
-}
-
-
-selected_labels = st.multiselect(
-    "Competition",
-    league_options,
-    default=[],
-    placeholder=(
-        "Competition ရွေးပါ "
-        "(Search လုပ်လို့ရပါတယ်)"
-    ),
-    filter_mode="contains",
-    key="competition_selector",
-)
-
-
-selected_leagues = [
-    label_to_item[label]
-    for label in selected_labels
-    if label in label_to_item
-]
-
-
-# ============================================================
-# SELECTED LEAGUE SUMMARY
-# ============================================================
-
-st.info(
-    f"🏆 Selected leagues: "
-    f"**{len(selected_leagues)}**"
-)
-
-
-if selected_leagues:
-
-    with st.expander(
-        "▼ View selected leagues",
-        expanded=False,
-    ):
-
-        for league in selected_leagues:
-
-            st.write(
-                f"• **{league['name']}** "
-                f"— {league['country']} "
-                f"• ID: {league['id']}"
-            )
-
-
-# ============================================================
-# QUICK PRESETS
-# ============================================================
-
 st.markdown(
-    "### ⚡ Quick League Presets"
+    """
+    <div class="subtitle">
+        Search league name → select league → select season → get matches
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-preset_col1, preset_col2, preset_col3 = (
-    st.columns(3)
+# ------------------------------------------------------------
+# Popular league quick selector
+# ------------------------------------------------------------
+
+st.markdown("### ⭐ Popular Leagues")
+
+popular_labels = [
+    league_label(x)
+    for x in POPULAR_LEAGUES
+]
+
+popular_choice = st.selectbox(
+    "Quick select",
+    ["— Select from popular leagues —"]
+    + popular_labels,
+    index=0,
 )
 
+if popular_choice != "— Select from popular leagues —":
 
-def find_leagues(
-    names,
-    country=None
-):
-
-    results = []
-
-    for item in catalog:
-
-        if country:
-
-            if item[
-                "country"
-            ].lower() != country.lower():
-
-                continue
-
-
-        if item[
-            "name"
-        ].lower() in [
-            name.lower()
-            for name in names
-        ]:
-
-            results.append(
-                item
-            )
-
-    return results
-
-
-with preset_col1:
-
-    if st.button(
-        "🇬🇧 England Top 2",
-        use_container_width=True,
-    ):
-
-        # Note:
-        # Widget state cannot safely be mutated
-        # after the widget is instantiated.
-        # So show the suggested IDs instead.
-        england = [
-            item
-            for item in catalog
-            if item[
-                "country"
-            ].lower()
-            == "england"
-            and item[
-                "name"
-            ].lower()
-            in [
-                "premier league",
-                "championship",
-            ]
-        ]
-
-        if england:
-
-            st.session_state[
-                "preset_message"
-            ] = england
-
-            st.rerun()
-
-
-with preset_col2:
-
-    if st.button(
-        "🇪🇸 Spain Top 2",
-        use_container_width=True,
-    ):
-
-        spain = [
-            item
-            for item in catalog
-            if item[
-                "country"
-            ].lower()
-            == "spain"
-            and item[
-                "name"
-            ].lower()
-            in [
-                "la liga",
-                "la liga 2",
-            ]
-        ]
-
-        if spain:
-
-            st.session_state[
-                "preset_message"
-            ] = spain
-
-            st.rerun()
-
-
-with preset_col3:
-
-    if st.button(
-        "🇩🇪 Germany Top 2",
-        use_container_width=True,
-    ):
-
-        germany = [
-            item
-            for item in catalog
-            if item[
-                "country"
-            ].lower()
-            == "germany"
-            and item[
-                "name"
-            ].lower()
-            in [
-                "bundesliga",
-                "2. bundesliga",
-            ]
-        ]
-
-        if germany:
-
-            st.session_state[
-                "preset_message"
-            ] = germany
-
-            st.rerun()
-
-
-# ============================================================
-# PRESET DISPLAY
-# ============================================================
-
-if (
-    "preset_message"
-    in st.session_state
-    and
-    st.session_state[
-        "preset_message"
-    ]
-):
-
-    preset_items = st.session_state[
-        "preset_message"
-    ]
-
-    st.success(
-        "Preset တွေ့ပါပြီ။ "
-        "Competition dropdown ထဲမှာ "
-        "အဆိုပါ leagues ကို ရွေးနိုင်ပါတယ်။"
+    selected_index = (
+        popular_labels.index(
+            popular_choice
+        )
     )
 
-    for item in preset_items:
+    st.session_state.selected_league = (
+        POPULAR_LEAGUES[selected_index]
+        .copy()
+    )
 
-        st.write(
-            f"• {item['name']} "
-            f"— {item['country']} "
-            f"(ID {item['id']})"
+
+# ------------------------------------------------------------
+# Search League
+# ------------------------------------------------------------
+
+st.markdown("### 🔎 Search League")
+
+search_col1, search_col2 = st.columns(
+    [4, 1]
+)
+
+with search_col1:
+
+    search_text = st.text_input(
+        "Search league",
+        value=st.session_state.last_search,
+        placeholder=(
+            "Premier League / Bundesliga / "
+            "Champions League / Serie A..."
+        ),
+        label_visibility="collapsed",
+    )
+
+with search_col2:
+
+    search_clicked = st.button(
+        "🔎 Search",
+        use_container_width=True,
+    )
+
+if search_clicked:
+
+    if not st.session_state.api_key:
+
+        st.error(
+            "API key ထည့်ပြီးမှ League Search လုပ်ပါ။"
         )
 
-    if st.button(
-        "✖ Clear Preset"
-    ):
-
-        st.session_state[
-            "preset_message"
-        ] = []
-
-        st.rerun()
-
-
-# ============================================================
-# SEARCH BUTTON
-# ============================================================
-
-st.markdown(
-    "---"
-)
-
-
-scan_button = st.button(
-    "🔍 SEARCH MATCHES",
-    type="primary",
-    use_container_width=True,
-)
-
-
-# ============================================================
-# SCAN
-# ============================================================
-
-if scan_button:
-
-    if not selected_leagues:
+    elif len(search_text.strip()) < 3:
 
         st.warning(
-            "⚠️ အနည်းဆုံး Competition တစ်ခု ရွေးပေးပါ။"
+            "League name အနည်းဆုံး 3 လုံး ရိုက်ပါ။"
         )
 
     else:
 
-        selected_ids = {
-            item["id"]
-            for item in selected_leagues
-        }
+        with st.spinner(
+            "League catalogue ရှာနေပါတယ်..."
+        ):
+
+            results, error = search_leagues(
+                search_text
+            )
+
+        if error:
+
+            st.session_state.league_results = []
+
+            st.error(error)
+
+        else:
+
+            st.session_state.league_results = results
+            st.session_state.last_search = (
+                search_text
+            )
+
+            if results:
+
+                st.success(
+                    f"{len(results)} leagues found."
+                )
+
+            else:
+
+                st.warning(
+                    "ဒီနာမည်နဲ့ League မတွေ့ပါ။"
+                )
 
 
-        st.session_state.api_calls = 0
+# ------------------------------------------------------------
+# Search results selector
+# ------------------------------------------------------------
 
-        st.session_state.remaining_quota = None
+if st.session_state.league_results:
 
-        st.session_state.last_scan_results = []
+    st.markdown(
+        "### 📋 Search Results"
+    )
 
+    result_labels = [
+        league_label(x)
+        for x in st.session_state.league_results
+    ]
 
-        # ----------------------------------------------------
-        # SEARCH WINDOW
-        # ----------------------------------------------------
+    selected_result_label = st.selectbox(
+        "Choose league",
+        result_labels,
+        key="search_result_select",
+    )
 
-        st.info(
-            "🔎 Fixtures ရှာနေပါသည်...\n\n"
-            f"{search_start.strftime('%Y-%m-%d %I:%M %p')} "
-            "MMT → "
-            f"{search_end.strftime('%Y-%m-%d %I:%M %p')} "
-            "MMT"
+    selected_result_index = (
+        result_labels.index(
+            selected_result_label
         )
+    )
+
+    st.session_state.selected_league = (
+        st.session_state.league_results[
+            selected_result_index
+        ]
+    )
 
 
-        fixtures = collect_selected_fixtures(
-            selected_ids,
-            search_start,
-            search_end,
+# ============================================================
+# SELECTED LEAGUE
+# ============================================================
+
+selected_league = st.session_state.selected_league
+
+if selected_league:
+
+    st.markdown(
+        "### ✅ Selected League"
+    )
+
+    st.markdown(
+        f"""
+        <div class="blue-card">
+
+            <div style="
+                font-size:24px;
+                font-weight:800;
+            ">
+                🏆 {selected_league["name"]}
+            </div>
+
+            <div style="
+                margin-top:8px;
+                color:#9aa4b2;
+            ">
+                Country: {selected_league.get("country", "-")}
+                <br>
+                League ID: {selected_league["id"]}
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ========================================================
+    # SEASON
+    # ========================================================
+
+    st.markdown(
+        "### 📅 Season"
+    )
+
+    available_seasons = (
+        selected_league.get(
+            "seasons",
+            []
         )
+    )
 
+    # If search result contains seasons
+    if available_seasons:
 
-        if not fixtures:
+        # Put current year first if available
+        default_season = guess_current_season()
 
-            st.warning(
-                "⚠️ ရွေးထားသော leagues များအတွက် "
-                "သတ်မှတ်ထားသော 12:00 PM → "
-                "နောက်နေ့ 12:00 PM MMT window အတွင်း "
-                "upcoming match မတွေ့ပါ။"
+        season_options = available_seasons.copy()
+
+        if default_season in season_options:
+
+            default_index = season_options.index(
+                default_season
             )
 
         else:
 
-            st.success(
-                f"📅 Fixtures found: "
-                f"{len(fixtures)}"
+            default_index = 0
+
+    else:
+
+        # Popular local league doesn't have
+        # season metadata.
+        #
+        # We still allow manual season selection.
+        season_options = list(
+            range(
+                guess_current_season(),
+                2019,
+                -1,
+            )
+        )
+
+        default_index = 0
+
+    season = st.selectbox(
+        "API season",
+        season_options,
+        index=default_index,
+        format_func=lambda x: (
+            f"{x}/{str(x + 1)[-2:]}"
+        ),
+    )
+
+    st.caption(
+        "ဥပမာ 2025 ဆိုရင် 2025/26 season ကို ဆိုလိုပါတယ်။"
+    )
+
+    # ========================================================
+    # FREE PLAN NOTICE
+    # ========================================================
+
+    if season >= 2025:
+
+        st.warning(
+            "⚠️ သင့် screenshot အရ Free plan ဖြစ်နေပါတယ်။ "
+            "Free plan က season access ကို ကန့်သတ်ထားနိုင်ပါတယ်။ "
+            "2025/26 သို့မဟုတ် 2026/27 ကို API က ပယ်ချရင် "
+            "code ပြဿနာမဟုတ်ဘဲ plan restriction ဖြစ်ပါတယ်။"
+        )
+
+    # ========================================================
+    # SEARCH WINDOW
+    # ========================================================
+
+    st.markdown(
+        "### 🕛 Myanmar Time Search Window"
+    )
+
+    start_dt, end_dt = (
+        get_mmt_search_window()
+    )
+
+    st.markdown(
+        f"""
+        <div class="success-card">
+
+            <b>START</b><br>
+            {start_dt.strftime("%Y-%m-%d %I:%M %p")}
+            MMT
+
+            <br><br>
+
+            <b>END</b><br>
+            {end_dt.strftime("%Y-%m-%d %I:%M %p")}
+            MMT
+
+            <br><br>
+
+            <b>Timezone</b><br>
+            Asia/Yangon
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ========================================================
+    # GET MATCHES BUTTON
+    # ========================================================
+
+    get_matches_clicked = st.button(
+        "⚽ GET MATCHES",
+        type="primary",
+        use_container_width=True,
+    )
+
+    if get_matches_clicked:
+
+        if not st.session_state.api_key:
+
+            st.error(
+                "API key မရှိပါ။"
             )
 
+        else:
 
-            # ------------------------------------------------
-            # LIMIT MATCHES
-            # ------------------------------------------------
-
-            fixtures_to_analyze = fixtures[
-                :MAX_MATCHES_TO_ANALYZE
-            ]
-
-
-            st.info(
-                f"📊 Analysis limit: "
-                f"{len(fixtures_to_analyze)} "
-                f"matches"
-            )
-
-
-            # ------------------------------------------------
-            # TEAM CACHE
-            # ------------------------------------------------
-
-            home_cache = {}
-            away_cache = {}
-
-
-            evaluated = []
-
-
-            # ------------------------------------------------
-            # ANALYZE
-            # ------------------------------------------------
-
-            progress = st.progress(
-                0
-            )
-
-
-            for index, fixture in enumerate(
-                fixtures_to_analyze,
-                1,
+            with st.spinner(
+                "Myanmar Time 12 PM → နောက်နေ့ 12 PM "
+                "အတွင်းက matches ရှာနေပါတယ်..."
             ):
 
-                home = fixture[
-                    "teams"
-                ][
-                    "home"
-                ]
-
-                away = fixture[
-                    "teams"
-                ][
-                    "away"
-                ]
-
-
-                home_id = home[
-                    "id"
-                ]
-
-                away_id = away[
-                    "id"
-                ]
-
-                home_name = home[
-                    "name"
-                ]
-
-                away_name = away[
-                    "name"
-                ]
-
-
-                # --------------------------------------------
-                # HOME HISTORY
-                # --------------------------------------------
-
-                home_key = (
-                    f"{home_id}_HOME"
+                matches, error = (
+                    get_fixtures_for_window(
+                        league_id=selected_league["id"],
+                        season=season,
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                    )
                 )
 
+            if error:
 
-                if home_key not in home_cache:
+                st.session_state.matches = []
 
-                    home_cache[
-                        home_key
-                    ] = get_team_history(
-                        home_id,
-                        home_name,
-                        "HOME",
-                    )
-
-
-                home_stats = home_cache[
-                    home_key
-                ]
-
+                error_text = str(error)
 
                 # --------------------------------------------
-                # STOP IF API SAFETY LIMIT HIT
+                # Season restriction
                 # --------------------------------------------
 
                 if (
-                    st.session_state.api_calls
-                    >= MAX_API_CALLS_PER_RUN
+                    "Free plans" in error_text
+                    or "season" in error_text.lower()
                 ):
 
-                    st.warning(
-                        "🛑 API 80-call safety stop "
-                        "ဖြစ်သွားပါပြီ။"
-                    )
-
-                    break
-
-
-                # --------------------------------------------
-                # AWAY HISTORY
-                # --------------------------------------------
-
-                away_key = (
-                    f"{away_id}_AWAY"
-                )
-
-
-                if away_key not in away_cache:
-
-                    away_cache[
-                        away_key
-                    ] = get_team_history(
-                        away_id,
-                        away_name,
-                        "AWAY",
-                    )
-
-
-                away_stats = away_cache[
-                    away_key
-                ]
-
-
-                # --------------------------------------------
-                # MODEL
-                # --------------------------------------------
-
-                model = calculate_model(
-                    home_stats,
-                    away_stats,
-                )
-
-
-                # --------------------------------------------
-                # TIME
-                # --------------------------------------------
-
-                display_date, display_time = (
-                    format_fixture_time(
-                        fixture
-                    )
-                )
-
-
-                evaluated.append(
-                    {
-                        "fixture_id":
-                            fixture[
-                                "fixture"
-                            ][
-                                "id"
-                            ],
-
-                        "league":
-                            fixture[
-                                "league"
-                            ][
-                                "name"
-                            ],
-
-                        "country":
-                            fixture[
-                                "league"
-                            ].get(
-                                "country",
-                                ""
-                            ),
-
-                        "home":
-                            home_name,
-
-                        "away":
-                            away_name,
-
-                        "date":
-                            display_date,
-
-                        "time":
-                            display_time,
-
-                        "signal":
-                            model[
-                                "signal"
-                            ],
-
-                        "prob":
-                            model[
-                                "probability"
-                            ],
-
-                        "edge":
-                            model[
-                                "edge"
-                            ],
-
-                        "model":
-                            model,
-
-                        "h_stats":
-                            home_stats,
-
-                        "a_stats":
-                            away_stats,
-                    }
-                )
-
-
-                progress.progress(
-                    index
-                    /
-                    len(
-                        fixtures_to_analyze
-                    )
-                )
-
-
-            progress.empty()
-
-
-            st.session_state.last_scan_results = (
-                evaluated
-            )
-
-
-            st.session_state.scan_message = (
-                f"Scan complete • "
-                f"{len(evaluated)} matches"
-            )
-
-
-# ============================================================
-# RESULTS
-# ============================================================
-
-results = (
-    st.session_state.last_scan_results
-)
-
-
-if results:
-
-    st.markdown(
-        "---"
-    )
-
-    st.markdown(
-        "## 📊 Match Results"
-    )
-
-
-    # --------------------------------------------------------
-    # SORT:
-    # OVER → UNDER → NEUTRAL
-    # --------------------------------------------------------
-
-    priority = {
-        "OVER_2_5": 0,
-        "UNDER_2_5": 1,
-        "NEUTRAL": 2,
-        "DATA_UNAVAILABLE": 3,
-    }
-
-
-    results.sort(
-        key=lambda x: (
-            priority.get(
-                x["signal"],
-                9
-            ),
-            x["date"],
-            x["time"],
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # RESULT CARDS
-    # --------------------------------------------------------
-
-    for match in results:
-
-        signal = match[
-            "signal"
-        ]
-
-
-        if signal == "OVER_2_5":
-
-            signal_text = (
-                "🟢 OVER 2.5"
-            )
-
-            signal_class = (
-                "signal-over"
-            )
-
-        elif signal == "UNDER_2_5":
-
-            signal_text = (
-                "🔵 UNDER 2.5"
-            )
-
-            signal_class = (
-                "signal-under"
-            )
-
-        else:
-
-            signal_text = (
-                "⚪ NEUTRAL"
-            )
-
-            signal_class = (
-                "signal-neutral"
-            )
-
-
-        st.markdown(
-            '<div class="match-card">',
-            unsafe_allow_html=True,
-        )
-
-
-        # ----------------------------------------------------
-        # HEADER
-        # ----------------------------------------------------
-
-        c1, c2 = st.columns(
-            [3, 1]
-        )
-
-
-        with c1:
-
-            st.markdown(
-                f"### ⚽ "
-                f"{match['home']} "
-                f"vs "
-                f"{match['away']}"
-            )
-
-            st.write(
-                f"🏆 {match['league']} "
-                f"— {match['country']}"
-            )
-
-            st.write(
-                f"📅 {match['date']} "
-                f"  🕐 {match['time']} MMT"
-            )
-
-
-        with c2:
-
-            st.markdown(
-                f'<div class="{signal_class}">'
-                f'{signal_text}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-            st.write("")
-
-
-            prob = match[
-                "prob"
-            ]
-
-            edge = match[
-                "edge"
-            ]
-
-
-            if prob is None:
-
-                st.write(
-                    "Probability: —"
-                )
-
-            else:
-
-                st.write(
-                    f"Probability: "
-                    f"**{prob:.1f}%**"
-                )
-
-
-            if edge is None:
-
-                st.write(
-                    "Model Edge: —"
-                )
-
-            else:
-
-                st.write(
-                    f"Model Edge: "
-                    f"**{edge:+.1f}%**"
-                )
-
-
-        st.markdown(
-            "---"
-        )
-
-
-        # ----------------------------------------------------
-        # STATS
-        # ----------------------------------------------------
-
-        home_stats = match[
-            "h_stats"
-        ]
-
-        away_stats = match[
-            "a_stats"
-        ]
-
-
-        stat1, stat2 = st.columns(
-            2
-        )
-
-
-        with stat1:
-
-            st.markdown(
-                f"#### 🏠 "
-                f"{match['home']} — L5 HOME"
-            )
-
-            st.write(
-                f"O2.5: "
-                f"**{safe_pct(home_stats.get('over_pct'))}**"
-            )
-
-            st.write(
-                f"U2.5: "
-                f"**{safe_pct(home_stats.get('under_pct'))}**"
-            )
-
-            st.write(
-                f"BTTS: "
-                f"**{safe_pct(home_stats.get('btts_pct'))}**"
-            )
-
-            st.write(
-                f"GF: "
-                f"**{safe_num(home_stats.get('gf_avg'))}**"
-            )
-
-            st.write(
-                f"GA: "
-                f"**{safe_num(home_stats.get('ga_avg'))}**"
-            )
-
-
-        with stat2:
-
-            st.markdown(
-                f"#### ✈️ "
-                f"{match['away']} — L5 AWAY"
-            )
-
-            st.write(
-                f"O2.5: "
-                f"**{safe_pct(away_stats.get('over_pct'))}**"
-            )
-
-            st.write(
-                f"U2.5: "
-                f"**{safe_pct(away_stats.get('under_pct'))}**"
-            )
-
-            st.write(
-                f"BTTS: "
-                f"**{safe_pct(away_stats.get('btts_pct'))}**"
-            )
-
-            st.write(
-                f"GF: "
-                f"**{safe_num(away_stats.get('gf_avg'))}**"
-            )
-
-            st.write(
-                f"GA: "
-                f"**{safe_num(away_stats.get('ga_avg'))}**"
-            )
-
-
-        # ----------------------------------------------------
-        # RULE CHECKS
-        # ----------------------------------------------------
-
-        model = match[
-            "model"
-        ]
-
-
-        with st.expander(
-            "🔎 View model conditions"
-        ):
-
-
-            if signal == "OVER_2_5":
-
-                st.markdown(
-                    "### 🟢 OVER 2.5 Conditions"
-                )
-
-
-                checks = model[
-                    "over_checks"
-                ]
-
-
-                st.write(
-                    f"{condition_icon(checks['home_o25'])} "
-                    f"Home L5 O2.5 ≥ 60% "
-                    f"— "
-                    f"{safe_pct(home_stats.get('over_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_o25'])} "
-                    f"Away L5 O2.5 ≥ 60% "
-                    f"— "
-                    f"{safe_pct(away_stats.get('over_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_gf'])} "
-                    f"Home GF > 1.5 "
-                    f"— "
-                    f"{safe_num(home_stats.get('gf_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_ga'])} "
-                    f"Home GA > 1.0 "
-                    f"— "
-                    f"{safe_num(home_stats.get('ga_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_gf'])} "
-                    f"Away GF > 1.0 "
-                    f"— "
-                    f"{safe_num(away_stats.get('gf_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_ga'])} "
-                    f"Away GA > 1.0 "
-                    f"— "
-                    f"{safe_num(away_stats.get('ga_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_btts'])} "
-                    f"Home BTTS ≥ 60% "
-                    f"— "
-                    f"{safe_pct(home_stats.get('btts_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_btts'])} "
-                    f"Away BTTS ≥ 60% "
-                    f"— "
-                    f"{safe_pct(away_stats.get('btts_pct'))}"
-                )
-
-                st.write(
-                    f"Model Edge > 5% "
-                    f"— "
-                    f"**{model['over_edge']:+.1f}%**"
-                )
-
-
-            elif signal == "UNDER_2_5":
-
-                st.markdown(
-                    "### 🔵 UNDER 2.5 Conditions"
-                )
-
-
-                checks = model[
-                    "under_checks"
-                ]
-
-
-                st.write(
-                    f"{condition_icon(checks['home_u25'])} "
-                    f"Home L5 U2.5 ≥ 60% "
-                    f"— "
-                    f"{safe_pct(home_stats.get('under_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_u25'])} "
-                    f"Away L5 U2.5 ≥ 60% "
-                    f"— "
-                    f"{safe_pct(away_stats.get('under_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_gf'])} "
-                    f"Home GF < 1.3 "
-                    f"— "
-                    f"{safe_num(home_stats.get('gf_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_ga'])} "
-                    f"Home GA < 1.0 "
-                    f"— "
-                    f"{safe_num(home_stats.get('ga_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_gf'])} "
-                    f"Away GF < 1.1 "
-                    f"— "
-                    f"{safe_num(away_stats.get('gf_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_ga'])} "
-                    f"Away GA < 1.2 "
-                    f"— "
-                    f"{safe_num(away_stats.get('ga_avg'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['home_btts'])} "
-                    f"Home BTTS < 50% "
-                    f"— "
-                    f"{safe_pct(home_stats.get('btts_pct'))}"
-                )
-
-                st.write(
-                    f"{condition_icon(checks['away_btts'])} "
-                    f"Away BTTS < 50% "
-                    f"— "
-                    f"{safe_pct(away_stats.get('btts_pct'))}"
-                )
-
-                st.write(
-                    f"Model Edge > 5% "
-                    f"— "
-                    f"**{model['under_edge']:+.1f}%**"
-                )
-
-
-            else:
-
-                st.markdown(
-                    "### ⚪ Why NEUTRAL?"
-                )
-
-
-                over_failed = [
-                    key
-                    for key, value
-                    in model[
-                        "over_checks"
-                    ].items()
-                    if not value
-                ]
-
-
-                under_failed = [
-                    key
-                    for key, value
-                    in model[
-                        "under_checks"
-                    ].items()
-                    if not value
-                ]
-
-
-                st.write(
-                    "OVER failed conditions:"
-                )
-
-                if over_failed:
-
-                    st.write(
-                        "❌ "
-                        +
-                        ", ".join(
-                            over_failed
-                        )
+                    st.markdown(
+                        f"""
+                        <div class="error-card">
+
+                            <h3>
+                                ❌ API Season Access Error
+                            </h3>
+
+                            <p>
+                                {error_text}
+                            </p>
+
+                            <p>
+                                ဒီဟာက Streamlit / League Filter
+                                error မဟုတ်ပါ။
+                            </p>
+
+                            <p>
+                                API Free plan က ဒီ season ကို
+                                access မပေးတာ ဖြစ်ပါတယ်။
+                            </p>
+
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
 
                 else:
 
-                    st.write(
-                        "✅ All Over conditions passed "
-                        "but edge condition failed."
+                    st.error(
+                        error_text
                     )
 
+            else:
 
-                st.write(
-                    "UNDER failed conditions:"
-                )
+                st.session_state.matches = matches
 
-                if under_failed:
+                if matches:
 
-                    st.write(
-                        "❌ "
-                        +
-                        ", ".join(
-                            under_failed
-                        )
+                    st.success(
+                        f"{len(matches)} matches found."
                     )
 
                 else:
 
-                    st.write(
-                        "✅ All Under conditions passed "
-                        "but edge condition failed."
+                    st.info(
+                        "ဒီ 12 PM MMT → နောက်နေ့ 12 PM MMT "
+                        "window အတွင်းမှာ match မတွေ့ပါ။"
                     )
 
 
-        # ----------------------------------------------------
-        # DATA WARNING
-        # ----------------------------------------------------
+# ============================================================
+# MATCH RESULTS
+# ============================================================
 
-        st.caption(
-            "⚠️ L5 history = API-SPORTS 2024 "
-            "historical proxy. "
-            "xG မသုံးထားပါ။ "
-            "BTTS condition ကို hard filter အဖြစ် "
-            "သတ်မှတ်ထားသည်။"
-        )
+matches = st.session_state.matches
 
+if matches:
 
-        st.markdown(
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        "## ⚽ Match Results"
+    )
+
+    st.markdown(
+        f"""
+        <div class="blue-card">
+            <b>SEARCH WINDOW</b><br>
+            {start_dt.strftime("%Y-%m-%d %I:%M %p")}
+            →
+            {end_dt.strftime("%Y-%m-%d %I:%M %p")}
+            MMT
+
+            <br><br>
+
+            <b>TOTAL MATCHES</b><br>
+            {len(matches)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for match in matches:
+
+        render_match(match)
 
 
 # ============================================================
-# FOOTER / API SAFETY
+# DATA TABLE
 # ============================================================
 
-st.markdown(
-    "---"
-)
+if matches:
 
-footer_col1, footer_col2 = st.columns(
-    2
-)
+    st.markdown(
+        "## 📊 Match Table"
+    )
 
-with footer_col1:
+    table_rows = []
 
-    st.caption(
-        f"API calls this run: "
-        f"{st.session_state.api_calls} "
-        f"/ {MAX_API_CALLS_PER_RUN}"
+    for match in matches:
+
+        fixture = match.get(
+            "fixture",
+            {}
+        )
+
+        league = match.get(
+            "league",
+            {}
+        )
+
+        teams = match.get(
+            "teams",
+            {}
+        )
+
+        goals = match.get(
+            "goals",
+            {}
+        )
+
+        dt_mmt = match.get(
+            "_mmt_datetime"
+        )
+
+        table_rows.append(
+            {
+                "Fixture ID": fixture.get(
+                    "id"
+                ),
+                "Date MMT": (
+                    dt_mmt.strftime(
+                        "%Y-%m-%d"
+                    )
+                    if dt_mmt
+                    else ""
+                ),
+                "Time MMT": (
+                    dt_mmt.strftime(
+                        "%I:%M %p"
+                    )
+                    if dt_mmt
+                    else ""
+                ),
+                "League": league.get(
+                    "name",
+                    "",
+                ),
+                "Home": teams.get(
+                    "home",
+                    {}
+                ).get(
+                    "name",
+                    "",
+                ),
+                "Away": teams.get(
+                    "away",
+                    {}
+                ).get(
+                    "name",
+                    "",
+                ),
+                "Home Goals": goals.get(
+                    "home"
+                ),
+                "Away Goals": goals.get(
+                    "away"
+                ),
+                "Status": get_status_text(
+                    match
+                ),
+            }
+        )
+
+    df = pd.DataFrame(
+        table_rows
+    )
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
     )
 
 
-with footer_col2:
+# ============================================================
+# FOOTER / HELP
+# ============================================================
 
-    if (
-        st.session_state.remaining_quota
-        is not None
-    ):
+st.markdown("---")
 
-        st.caption(
-            "API remaining quota: "
-            f"{st.session_state.remaining_quota}"
-        )
+with st.expander(
+    "ℹ️ ဒီ App ဘယ်လိုအလုပ်လုပ်သလဲ?"
+):
 
-    else:
+    st.markdown(
+        """
+### 1. League Search
 
-        st.caption(
-            "API remaining quota: Not reported"
-        )
+`Premier League`, `Bundesliga`,
+`Champions League`, `Serie A` စသဖြင့်
+**3 characters အထက်** ရိုက်ပြီး Search နှိပ်ပါ။
 
+API က League ID ကိုရှာပေးပါမယ်။
+
+---
+
+### 2. League ID ကို Manual ရှာစရာ မလိုပါ
+
+ဥပမာ:
+
+`Premier League`
+
+→ API Search
+
+→ `Premier League — England (ID 39)`
+
+→ ရွေး
+
+ဒီလိုဖြစ်ပါတယ်။
+
+---
+
+### 3. Season
+
+League ID နဲ့ Season ကို သီးခြားအသုံးပြုပါတယ်။
+
+ဥပမာ:
+
+`Premier League`
+
+League ID = `39`
+
+`2025`
+
+ဆိုရင်
+
+`2025/26`
+
+season ဖြစ်ပါတယ်။
+
+---
+
+### 4. Myanmar Time
+
+App က
+
+**ဒီနေ့ 12:00 PM MMT**
+
+မှ
+
+**နောက်နေ့ 12:00 PM MMT**
+
+အထိကို exact window အဖြစ်သတ်မှတ်ပါတယ်။
+
+---
+
+### 5. API Timezone
+
+API request ထဲမှာ
+
+`timezone=Asia/Yangon`
+
+ကို အသုံးပြုထားပါတယ်။
+
+ဒါကြောင့် match kickoff ကို
+Myanmar Standard Time အဖြစ် ရယူပြီး
+နောက်ဆုံးမှာ code က exact window ထပ်စစ်ပါတယ်။
+
+---
+
+### 6. Free Plan
+
+API-Football Free plan မှာ
+daily request limit ရှိပြီး
+season access လည်း ကန့်သတ်ထားနိုင်ပါတယ်။
+
+ဒါကြောင့် API က
+
+`Free plans do not have access to this season`
+
+လို့ ပြန်လာရင်
+League Filter ကို ထပ်မပြင်ပါနဲ့။
+
+အဲဒါက API plan restriction ဖြစ်ပါတယ်။
+        """
+    )
 
 st.caption(
-    "Myanmar Time window: "
-    "Today 12:00 PM → Tomorrow 12:00 PM MMT"
-)
-
-st.caption(
-    "No xG • L5 O/U • L5 BTTS • GF/GA • Model Edge"
+    "Football Match Finder • Asia/Yangon • API-Football"
 )
