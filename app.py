@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
-from datetime import date, timedelta
+
+from datetime import datetime, timedelta, timezone, date
 from typing import Dict, List, Any
 
 
@@ -23,6 +24,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+
     .stApp {
         background: #0b0e14;
         color: #f2f4f8;
@@ -119,6 +121,14 @@ st.markdown(
         font-weight: 800;
     }
 
+    .quota-box {
+        background: #202630;
+        border: 1px solid #3b4350;
+        border-radius: 14px;
+        padding: 16px;
+        margin: 12px 0;
+    }
+
     div[data-testid="stButton"] > button {
         border-radius: 12px;
         min-height: 45px;
@@ -132,15 +142,41 @@ st.markdown(
 
 
 # ============================================================
-# API CONFIG
+# API CONFIGURATION
 # ============================================================
 
 API_BASE = "https://v3.football.api-sports.io"
 
-# Free-plan-friendly seasons.
-# API-Football uses the starting year of a season:
-# 2024 means 2024/25 for most European leagues.
-FREE_SEASONS = [2022, 2023, 2024]
+# ------------------------------------------------------------
+# IMPORTANT:
+# Absolute maximum API requests allowed by this app.
+#
+# When 80 requests are reached:
+# - No 81st request
+# - Processing stops immediately
+# ------------------------------------------------------------
+
+MAX_API_REQUESTS = 80
+
+
+# ============================================================
+# TIMEZONE
+# ============================================================
+
+MMT_TZ = timezone(
+    timedelta(hours=6, minutes=30)
+)
+
+
+# ============================================================
+# SEASON
+# ============================================================
+
+FREE_SEASONS = [
+    2022,
+    2023,
+    2024,
+]
 
 
 # ============================================================
@@ -148,38 +184,42 @@ FREE_SEASONS = [2022, 2023, 2024]
 # ============================================================
 #
 # IMPORTANT:
-# This catalogue is intentionally local.
 #
-# Therefore:
-# - Search League does NOT consume API requests.
-# - Country filtering does NOT consume API requests.
-# - Selecting leagues does NOT consume API requests.
+# This list is LOCAL.
+#
+# Searching / filtering / selecting leagues
+# DOES NOT use API requests.
 #
 # API is only called after GET MATCHES.
 #
-# You can add more leagues later.
-#
 
 LEAGUES = [
-    # England
+
+    # ========================================================
+    # ENGLAND
+    # ========================================================
+
     {
         "id": 39,
         "name": "Premier League",
         "country": "England",
         "type": "League",
     },
+
     {
         "id": 40,
         "name": "Championship",
         "country": "England",
         "type": "League",
     },
+
     {
         "id": 41,
         "name": "League One",
         "country": "England",
         "type": "League",
     },
+
     {
         "id": 42,
         "name": "League Two",
@@ -187,13 +227,18 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Spain
+
+    # ========================================================
+    # SPAIN
+    # ========================================================
+
     {
         "id": 140,
         "name": "LaLiga",
         "country": "Spain",
         "type": "League",
     },
+
     {
         "id": 141,
         "name": "LaLiga 2",
@@ -201,13 +246,18 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Italy
+
+    # ========================================================
+    # ITALY
+    # ========================================================
+
     {
         "id": 135,
         "name": "Serie A",
         "country": "Italy",
         "type": "League",
     },
+
     {
         "id": 136,
         "name": "Serie B",
@@ -215,13 +265,18 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Germany
+
+    # ========================================================
+    # GERMANY
+    # ========================================================
+
     {
         "id": 78,
         "name": "Bundesliga",
         "country": "Germany",
         "type": "League",
     },
+
     {
         "id": 79,
         "name": "2. Bundesliga",
@@ -229,13 +284,18 @@ LEAGUES = [
         "type": "League",
     },
 
-    # France
+
+    # ========================================================
+    # FRANCE
+    # ========================================================
+
     {
         "id": 61,
         "name": "Ligue 1",
         "country": "France",
         "type": "League",
     },
+
     {
         "id": 62,
         "name": "Ligue 2",
@@ -243,7 +303,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Netherlands
+
+    # ========================================================
+    # NETHERLANDS
+    # ========================================================
+
     {
         "id": 88,
         "name": "Eredivisie",
@@ -251,7 +315,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Portugal
+
+    # ========================================================
+    # PORTUGAL
+    # ========================================================
+
     {
         "id": 94,
         "name": "Primeira Liga",
@@ -259,7 +327,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Belgium
+
+    # ========================================================
+    # BELGIUM
+    # ========================================================
+
     {
         "id": 144,
         "name": "Jupiler Pro League",
@@ -267,7 +339,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Turkey
+
+    # ========================================================
+    # TURKEY
+    # ========================================================
+
     {
         "id": 203,
         "name": "Süper Lig",
@@ -275,7 +351,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Scotland
+
+    # ========================================================
+    # SCOTLAND
+    # ========================================================
+
     {
         "id": 179,
         "name": "Premiership",
@@ -283,7 +363,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Austria
+
+    # ========================================================
+    # AUSTRIA
+    # ========================================================
+
     {
         "id": 218,
         "name": "Bundesliga",
@@ -291,7 +375,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Switzerland
+
+    # ========================================================
+    # SWITZERLAND
+    # ========================================================
+
     {
         "id": 207,
         "name": "Super League",
@@ -299,7 +387,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Greece
+
+    # ========================================================
+    # GREECE
+    # ========================================================
+
     {
         "id": 197,
         "name": "Super League 1",
@@ -307,7 +399,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Denmark
+
+    # ========================================================
+    # DENMARK
+    # ========================================================
+
     {
         "id": 119,
         "name": "Superliga",
@@ -315,7 +411,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Sweden
+
+    # ========================================================
+    # SWEDEN
+    # ========================================================
+
     {
         "id": 113,
         "name": "Allsvenskan",
@@ -323,7 +423,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Norway
+
+    # ========================================================
+    # NORWAY
+    # ========================================================
+
     {
         "id": 103,
         "name": "Eliteserien",
@@ -331,7 +435,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Poland
+
+    # ========================================================
+    # POLAND
+    # ========================================================
+
     {
         "id": 106,
         "name": "Ekstraklasa",
@@ -339,7 +447,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Czech Republic
+
+    # ========================================================
+    # CZECH REPUBLIC
+    # ========================================================
+
     {
         "id": 345,
         "name": "Czech Liga",
@@ -347,7 +459,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Romania
+
+    # ========================================================
+    # ROMANIA
+    # ========================================================
+
     {
         "id": 283,
         "name": "Liga I",
@@ -355,7 +471,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Croatia
+
+    # ========================================================
+    # CROATIA
+    # ========================================================
+
     {
         "id": 210,
         "name": "HNL",
@@ -363,7 +483,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Serbia
+
+    # ========================================================
+    # SERBIA
+    # ========================================================
+
     {
         "id": 286,
         "name": "Super Liga",
@@ -371,7 +495,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Saudi Arabia
+
+    # ========================================================
+    # SAUDI ARABIA
+    # ========================================================
+
     {
         "id": 307,
         "name": "Saudi Pro League",
@@ -379,7 +507,11 @@ LEAGUES = [
         "type": "League",
     },
 
+
+    # ========================================================
     # USA
+    # ========================================================
+
     {
         "id": 253,
         "name": "Major League Soccer",
@@ -387,7 +519,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Mexico
+
+    # ========================================================
+    # MEXICO
+    # ========================================================
+
     {
         "id": 262,
         "name": "Liga MX",
@@ -395,7 +531,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Brazil
+
+    # ========================================================
+    # BRAZIL
+    # ========================================================
+
     {
         "id": 71,
         "name": "Serie A",
@@ -403,7 +543,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Argentina
+
+    # ========================================================
+    # ARGENTINA
+    # ========================================================
+
     {
         "id": 128,
         "name": "Liga Profesional",
@@ -411,7 +555,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Japan
+
+    # ========================================================
+    # JAPAN
+    # ========================================================
+
     {
         "id": 98,
         "name": "J1 League",
@@ -419,7 +567,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # South Korea
+
+    # ========================================================
+    # SOUTH KOREA
+    # ========================================================
+
     {
         "id": 292,
         "name": "K League 1",
@@ -427,7 +579,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # Australia
+
+    # ========================================================
+    # AUSTRALIA
+    # ========================================================
+
     {
         "id": 188,
         "name": "A-League",
@@ -435,7 +591,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # China
+
+    # ========================================================
+    # CHINA
+    # ========================================================
+
     {
         "id": 169,
         "name": "Super League",
@@ -443,7 +603,11 @@ LEAGUES = [
         "type": "League",
     },
 
-    # India
+
+    # ========================================================
+    # INDIA
+    # ========================================================
+
     {
         "id": 323,
         "name": "Indian Super League",
@@ -451,19 +615,25 @@ LEAGUES = [
         "type": "League",
     },
 
-    # European competitions
+
+    # ========================================================
+    # EUROPEAN COMPETITIONS
+    # ========================================================
+
     {
         "id": 2,
         "name": "UEFA Champions League",
         "country": "World",
         "type": "Cup",
     },
+
     {
         "id": 3,
         "name": "UEFA Europa League",
         "country": "World",
         "type": "Cup",
     },
+
     {
         "id": 848,
         "name": "UEFA Europa Conference League",
@@ -489,27 +659,26 @@ if "api_errors" not in st.session_state:
 if "last_request_count" not in st.session_state:
     st.session_state.last_request_count = 0
 
+if "quota_stop" not in st.session_state:
+    st.session_state.quota_stop = False
+
 
 # ============================================================
 # API KEY
 # ============================================================
 
 def get_api_key() -> str:
-    """
-    Read API key from Streamlit secrets.
-
-    .streamlit/secrets.toml
-
-    API_KEY = "YOUR_API_KEY"
-    """
 
     try:
-        key = st.secrets.get("API_KEY", "")
-    except Exception:
-        key = ""
 
-    if not key:
-        return ""
+        key = st.secrets.get(
+            "API_KEY",
+            ""
+        )
+
+    except Exception:
+
+        key = ""
 
     return str(key).strip()
 
@@ -518,19 +687,65 @@ API_KEY = get_api_key()
 
 
 # ============================================================
-# API REQUEST FUNCTION
+# REQUEST COUNTER
 # ============================================================
 
-@st.cache_data(ttl=300, show_spinner=False)
-def api_get(endpoint: str, params_tuple: tuple):
-    """
-    Cached GET request.
+def can_make_api_request() -> bool:
 
-    params_tuple is used instead of dict because Streamlit cache
-    needs hashable arguments.
-    """
+    current_count = (
+        st.session_state.last_request_count
+    )
 
-    params = dict(params_tuple)
+    if current_count >= MAX_API_REQUESTS:
+
+        st.session_state.quota_stop = True
+
+        return False
+
+    return True
+
+
+# ============================================================
+# API REQUEST
+# ============================================================
+
+def api_get(
+    endpoint: str,
+    params: Dict[str, Any],
+):
+
+    # --------------------------------------------------------
+    # HARD 80 REQUEST LIMIT
+    # --------------------------------------------------------
+
+    if not can_make_api_request():
+
+        return {
+            "ok": False,
+            "status_code": 0,
+            "data": {
+                "errors": {
+                    "safety": (
+                        "API request safety limit "
+                        "of 80 reached."
+                    )
+                }
+            },
+            "url": "",
+            "blocked": True,
+        }
+
+
+    # --------------------------------------------------------
+    # COUNT REQUEST BEFORE SENDING
+    # --------------------------------------------------------
+
+    st.session_state.last_request_count += 1
+
+    request_number = (
+        st.session_state.last_request_count
+    )
+
 
     headers = {
         "x-apisports-key": API_KEY
@@ -538,69 +753,121 @@ def api_get(endpoint: str, params_tuple: tuple):
 
     url = API_BASE + endpoint
 
+
     try:
+
         response = requests.get(
             url,
             headers=headers,
             params=params,
-            timeout=20,
+            timeout=25,
         )
 
-        status_code = response.status_code
+
+        # ----------------------------------------------------
+        # TRY JSON
+        # ----------------------------------------------------
 
         try:
+
             data = response.json()
+
         except Exception:
+
             data = {}
+
+
+        # ----------------------------------------------------
+        # API RATE LIMIT
+        # ----------------------------------------------------
+
+        if response.status_code == 429:
+
+            return {
+                "ok": False,
+                "status_code": 429,
+                "data": data,
+                "url": response.url,
+                "blocked": False,
+                "rate_limited": True,
+                "request_number": request_number,
+            }
+
 
         return {
             "ok": response.ok,
-            "status_code": status_code,
+            "status_code": response.status_code,
             "data": data,
             "url": response.url,
+            "blocked": False,
+            "rate_limited": False,
+            "request_number": request_number,
         }
 
-    except requests.RequestException as e:
+
+    except requests.RequestException as exc:
+
         return {
             "ok": False,
             "status_code": 0,
             "data": {
                 "errors": {
-                    "network": str(e)
+                    "network": str(exc)
                 }
             },
             "url": url,
+            "blocked": False,
+            "rate_limited": False,
+            "request_number": request_number,
         }
 
 
 # ============================================================
-# API ERROR FORMATTER
+# ERROR FORMATTER
 # ============================================================
 
-def format_api_error(result: Dict[str, Any]) -> str:
-    data = result.get("data", {})
+def format_api_error(
+    result: Dict[str, Any]
+) -> str:
 
-    errors = data.get("errors")
+    data = result.get(
+        "data",
+        {}
+    )
 
-    if isinstance(errors, dict) and errors:
-        parts = []
+    errors = data.get(
+        "errors"
+    )
 
-        for key, value in errors.items():
-            parts.append(f"{key}: {value}")
+    if isinstance(errors, dict):
 
-        return " | ".join(parts)
+        if errors:
+
+            return " | ".join(
+                f"{key}: {value}"
+                for key, value in errors.items()
+            )
 
     if isinstance(errors, list):
-        return " | ".join(str(x) for x in errors)
 
-    if result.get("status_code"):
-        return f"HTTP {result['status_code']}"
+        return " | ".join(
+            str(x)
+            for x in errors
+        )
+
+    status_code = result.get(
+        "status_code"
+    )
+
+    if status_code:
+
+        return f"HTTP {status_code}"
 
     return "Unknown API error"
 
 
 # ============================================================
-# SEARCH LEAGUES LOCALLY
+# LOCAL LEAGUE SEARCH
 # ============================================================
 
 def search_local_leagues(
@@ -609,36 +876,79 @@ def search_local_leagues(
     league_type: str,
 ) -> List[Dict[str, Any]]:
 
-    query = query.strip().lower()
+    query = (
+        query
+        .strip()
+        .lower()
+    )
 
     results = []
 
+
     for league in LEAGUES:
 
-        name = league["name"].lower()
-        league_country = league["country"].lower()
-        league_id = str(league["id"])
+        name = (
+            league["name"]
+            .lower()
+        )
 
-        # Search text
+        league_country = (
+            league["country"]
+            .lower()
+        )
+
+        league_id = str(
+            league["id"]
+        )
+
+
+        # ----------------------------------------------------
+        # TEXT SEARCH
+        # ----------------------------------------------------
+
         if query:
-            if (
-                query not in name
-                and query not in league_country
-                and query not in league_id
+
+            if not (
+                query in name
+                or query in league_country
+                or query in league_id
             ):
+
                 continue
 
-        # Country filter
+
+        # ----------------------------------------------------
+        # COUNTRY
+        # ----------------------------------------------------
+
         if country != "All Countries":
-            if league["country"] != country:
+
+            if (
+                league["country"]
+                != country
+            ):
+
                 continue
 
-        # Type filter
+
+        # ----------------------------------------------------
+        # TYPE
+        # ----------------------------------------------------
+
         if league_type != "All":
-            if league["type"] != league_type:
+
+            if (
+                league["type"]
+                != league_type
+            ):
+
                 continue
 
-        results.append(league)
+
+        results.append(
+            league
+        )
+
 
     return results
 
@@ -647,7 +957,9 @@ def search_local_leagues(
 # ADD LEAGUE
 # ============================================================
 
-def add_league(league: Dict[str, Any]):
+def add_league(
+    league: Dict[str, Any]
+):
 
     exists = any(
         x["id"] == league["id"]
@@ -655,14 +967,19 @@ def add_league(league: Dict[str, Any]):
     )
 
     if not exists:
-        st.session_state.selected_leagues.append(league)
+
+        st.session_state.selected_leagues.append(
+            league
+        )
 
 
 # ============================================================
 # REMOVE LEAGUE
 # ============================================================
 
-def remove_league(league_id: int):
+def remove_league(
+    league_id: int
+):
 
     st.session_state.selected_leagues = [
         x
@@ -672,10 +989,48 @@ def remove_league(league_id: int):
 
 
 # ============================================================
-# FETCH FIXTURES
+# MMT SEARCH WINDOW
 # ============================================================
 
-def fetch_fixtures(
+def get_mmt_window():
+
+    now_mmt = datetime.now(
+        MMT_TZ
+    )
+
+    # --------------------------------------------------------
+    # TODAY 12:00 PM MMT
+    # --------------------------------------------------------
+
+    start = datetime(
+        now_mmt.year,
+        now_mmt.month,
+        now_mmt.day,
+        12,
+        0,
+        0,
+        tzinfo=MMT_TZ,
+    )
+
+
+    # --------------------------------------------------------
+    # TOMORROW 12:00 PM MMT
+    # --------------------------------------------------------
+
+    end = (
+        start
+        + timedelta(days=1)
+    )
+
+
+    return start, end
+
+
+# ============================================================
+# FETCH FIXTURES FOR ONE LEAGUE
+# ============================================================
+
+def fetch_league_matches(
     league: Dict[str, Any],
     season: int,
     from_date: date,
@@ -683,55 +1038,266 @@ def fetch_fixtures(
 ):
 
     params = {
+
         "league": league["id"],
+
         "season": season,
-        "from": from_date.isoformat(),
-        "to": to_date.isoformat(),
+
+        "from": (
+            from_date
+            .isoformat()
+        ),
+
+        "to": (
+            to_date
+            .isoformat()
+        ),
+
+        # ----------------------------------------------------
+        # API-Football returns fixture times using this
+        # timezone.
+        # ----------------------------------------------------
+
+        "timezone": "Asia/Yangon",
     }
 
-    result = api_get(
+
+    return api_get(
         "/fixtures",
-        tuple(sorted(params.items())),
+        params,
     )
 
-    return result
+
+# ============================================================
+# FILTER EXACT MMT WINDOW
+# ============================================================
+
+def filter_mmt_window(
+    fixtures: List[Dict[str, Any]],
+    start_mmt: datetime,
+    end_mmt: datetime,
+):
+
+    filtered = []
+
+    seen = set()
+
+
+    for fixture in fixtures:
+
+        fixture_id = (
+            fixture
+            .get("fixture", {})
+            .get("id")
+        )
+
+
+        if fixture_id in seen:
+
+            continue
+
+
+        seen.add(
+            fixture_id
+        )
+
+
+        fixture_date = (
+            fixture
+            .get("fixture", {})
+            .get("date")
+        )
+
+
+        if not fixture_date:
+
+            continue
+
+
+        try:
+
+            dt = datetime.fromisoformat(
+                fixture_date
+            )
+
+        except Exception:
+
+            continue
+
+
+        # ----------------------------------------------------
+        # API may return offset-aware datetime.
+        # ----------------------------------------------------
+
+        if dt.tzinfo is None:
+
+            dt = dt.replace(
+                tzinfo=MMT_TZ
+            )
+
+        else:
+
+            dt = dt.astimezone(
+                MMT_TZ
+            )
+
+
+        # ----------------------------------------------------
+        # EXACT:
+        #
+        # TODAY 12:00 PM
+        # TO
+        # TOMORROW 12:00 PM
+        # ----------------------------------------------------
+
+        if (
+            start_mmt
+            <= dt
+            < end_mmt
+        ):
+
+            filtered.append(
+                fixture
+            )
+
+
+    return filtered
 
 
 # ============================================================
 # RENDER MATCH
 # ============================================================
 
-def render_match(match: Dict[str, Any]):
+def render_match(
+    match: Dict[str, Any]
+):
 
-    fixture = match.get("fixture", {})
-    teams = match.get("teams", {})
-    league = match.get("league", {})
-    goals = match.get("goals", {})
+    fixture = match.get(
+        "fixture",
+        {}
+    )
 
-    fixture_id = fixture.get("id", "-")
+    teams = match.get(
+        "teams",
+        {}
+    )
 
-    timestamp = fixture.get("date", "")
+    league = match.get(
+        "league",
+        {}
+    )
 
-    home = teams.get("home", {})
-    away = teams.get("away", {})
+    goals = match.get(
+        "goals",
+        {}
+    )
 
-    home_name = home.get("name", "Home")
-    away_name = away.get("name", "Away")
 
-    home_goals = goals.get("home")
-    away_goals = goals.get("away")
+    fixture_id = fixture.get(
+        "id",
+        "-"
+    )
 
-    status = fixture.get("status", {}).get("short", "")
 
-    league_name = league.get("name", "")
-    country = league.get("country", "")
+    timestamp = fixture.get(
+        "date",
+        ""
+    )
+
+
+    home = teams.get(
+        "home",
+        {}
+    )
+
+    away = teams.get(
+        "away",
+        {}
+    )
+
+
+    home_name = home.get(
+        "name",
+        "Home"
+    )
+
+    away_name = away.get(
+        "name",
+        "Away"
+    )
+
+
+    home_goals = goals.get(
+        "home"
+    )
+
+    away_goals = goals.get(
+        "away"
+    )
+
+
+    status = (
+        fixture
+        .get("status", {})
+        .get("short", "")
+    )
+
+
+    league_name = league.get(
+        "name",
+        ""
+    )
+
+    country = league.get(
+        "country",
+        ""
+    )
+
+
+    # --------------------------------------------------------
+    # Convert kickoff to MMT
+    # --------------------------------------------------------
+
+    display_kickoff = timestamp
+
+    if timestamp:
+
+        try:
+
+            dt = datetime.fromisoformat(
+                timestamp
+            )
+
+            if dt.tzinfo is None:
+
+                dt = dt.replace(
+                    tzinfo=timezone.utc
+                )
+
+            dt = dt.astimezone(
+                MMT_TZ
+            )
+
+            display_kickoff = (
+                dt.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                + " MMT"
+            )
+
+        except Exception:
+
+            pass
+
 
     st.markdown(
         f"""
         <div class="match-card">
 
             <div class="small">
-                {league_name} • {country}
+                {league_name}
+                •
+                {country}
                 &nbsp;&nbsp;|&nbsp;&nbsp;
                 Fixture ID: {fixture_id}
             </div>
@@ -743,9 +1309,17 @@ def render_match(match: Dict[str, Any]):
             </div>
 
             <div class="score">
-                {home_goals if home_goals is not None else "-"}
+                {
+                    home_goals
+                    if home_goals is not None
+                    else "-"
+                }
                 &nbsp; - &nbsp;
-                {away_goals if away_goals is not None else "-"}
+                {
+                    away_goals
+                    if away_goals is not None
+                    else "-"
+                }
             </div>
 
             <div class="team">
@@ -755,9 +1329,15 @@ def render_match(match: Dict[str, Any]):
             <br>
 
             <div class="small">
-                Status: {status}
+
+                Status:
+                {status}
+
                 <br>
-                Kickoff: {timestamp}
+
+                Kickoff:
+                {display_kickoff}
+
             </div>
 
         </div>
@@ -770,14 +1350,30 @@ def render_match(match: Dict[str, Any]):
 # HEADER
 # ============================================================
 
-st.title("⚽ Football Prematch Dashboard")
+st.title(
+    "⚽ Football Prematch Dashboard"
+)
+
 
 st.markdown(
     """
     <div class="info-card">
-        <b>Multi-League Prematch Mode</b><br>
-        League ကိုအရင်ရွေးပါ → Season ရွေးပါ → Date Window ရွေးပါ
-        → GET MATCHES နှိပ်ပါ။
+
+        <b>Multi-League Prematch Mode</b>
+
+        <br><br>
+
+        ① League ကိုရွေးပါ<br>
+        ② Season ကိုရွေးပါ<br>
+        ③ GET MATCHES နှိပ်ပါ<br>
+        ④ ရွေးထားတဲ့ League တွေကိုပဲ API က ဖတ်ပါမယ်
+
+        <br><br>
+
+        <b>Match Window:</b><br>
+        Myanmar Time နဲ့
+        <b>ဒီနေ့ 12:00 PM → နောက်နေ့ 12:00 PM</b>
+
     </div>
     """,
     unsafe_allow_html=True,
@@ -788,30 +1384,76 @@ st.markdown(
 # API STATUS
 # ============================================================
 
-st.subheader("🛡️ API Status")
+st.subheader(
+    "🛡️ API Status"
+)
+
 
 if API_KEY:
 
+    current_requests = (
+        st.session_state.last_request_count
+    )
+
+    remaining_local = max(
+        0,
+        MAX_API_REQUESTS
+        - current_requests
+    )
+
+
     st.markdown(
-        """
+        f"""
         <div class="success-card">
-            🟢 API key detected.<br>
-            API calls are ready.
+
+            🟢 API key detected.
+
+            <br><br>
+
+            Requests this run:
+            <b>{current_requests}</b>
+            / {MAX_API_REQUESTS}
+
+            <br>
+
+            Local safety remaining:
+            <b>{remaining_local}</b>
+
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 
 else:
 
     st.markdown(
         """
         <div class="warning-card">
-            🟡 API key မတွေ့သေးပါ။<br><br>
-            League Search နဲ့ League Selection ကို
-            API key မရှိဘဲ သုံးနိုင်ပါတယ်။
+
+            🟡 API key မတွေ့သေးပါ။
+
             <br><br>
-            GET MATCHES အတွက်တော့ API key လိုပါတယ်။
+
+            Streamlit Secrets ထဲမှာ
+
+            <br><br>
+
+            <b>API_KEY = "YOUR_API_KEY"</b>
+
+            <br><br>
+
+            ထည့်ထားရပါမယ်။
+
+            <br><br>
+
+            League Search / Selection ကို
+            API key မရှိဘဲ သုံးနိုင်ပါတယ်။
+
+            <br><br>
+
+            GET MATCHES အတွက် API key လိုပါတယ်။
+
         </div>
         """,
         unsafe_allow_html=True,
@@ -822,41 +1464,63 @@ else:
 # SEARCH LEAGUE
 # ============================================================
 
-st.header("🏆 Search League")
+st.header(
+    "🏆 Search League"
+)
+
 
 st.caption(
     "League နာမည် အလွတ်ကျက်စရာမလိုပါ။ "
     "Search / Country / Type နဲ့ ရွေးနိုင်ပါတယ်။"
 )
 
-col1, col2, col3 = st.columns([2.2, 1.2, 1.0])
+
+col1, col2, col3 = st.columns(
+    [2.2, 1.2, 1.0]
+)
+
 
 with col1:
 
     search_query = st.text_input(
         "🔍 Search",
-        placeholder="ဥပမာ: Premier, LaLiga, Champions...",
+        placeholder=(
+            "ဥပမာ: Premier, LaLiga, "
+            "Champions, Serie..."
+        ),
         key="league_search",
     )
+
 
 with col2:
 
     countries = sorted(
-        set(x["country"] for x in LEAGUES)
+        set(
+            x["country"]
+            for x in LEAGUES
+        )
     )
 
-    country_options = ["All Countries"] + countries
+    country_options = (
+        ["All Countries"]
+        + countries
+    )
 
     selected_country = st.selectbox(
         "🌍 Country",
         country_options,
     )
 
+
 with col3:
 
     selected_type = st.selectbox(
         "🏆 Type",
-        ["All", "League", "Cup"],
+        [
+            "All",
+            "League",
+            "Cup",
+        ],
     )
 
 
@@ -870,21 +1534,27 @@ search_results = search_local_leagues(
     selected_type,
 )
 
+
 st.write(
-    f"**Search Results: {len(search_results)} leagues**"
+    f"**Search Results: "
+    f"{len(search_results)} leagues**"
 )
 
 
 if not search_results:
 
     st.warning(
-        "League မတွေ့ပါ။ Search စာလုံးကို ပြောင်းပြီး ထပ်ရှာကြည့်ပါ။"
+        "League မတွေ့ပါ။ "
+        "Search စာလုံးကို ပြောင်းပြီး "
+        "ထပ်ရှာကြည့်ပါ။"
     )
 
 else:
 
-    # Show max 50 results at a time
-    display_results = search_results[:50]
+    display_results = (
+        search_results[:50]
+    )
+
 
     for league in display_results:
 
@@ -893,7 +1563,11 @@ else:
             for x in st.session_state.selected_leagues
         )
 
-        c1, c2 = st.columns([5, 1])
+
+        c1, c2 = st.columns(
+            [5, 1]
+        )
+
 
         with c1:
 
@@ -906,11 +1580,18 @@ else:
                     </div>
 
                     <div class="league-meta">
+
                         🌍 {league["country"]}
+
                         &nbsp; • &nbsp;
+
                         {league["type"]}
+
                         &nbsp; • &nbsp;
-                        League ID: {league["id"]}
+
+                        League ID:
+                        {league["id"]}
+
                     </div>
 
                 </div>
@@ -918,13 +1599,17 @@ else:
                 unsafe_allow_html=True,
             )
 
+
         with c2:
 
             if already_selected:
 
                 st.button(
                     "✓ Selected",
-                    key=f"selected_{league['id']}",
+                    key=(
+                        f"selected_"
+                        f"{league['id']}"
+                    ),
                     disabled=True,
                     use_container_width=True,
                 )
@@ -933,11 +1618,17 @@ else:
 
                 if st.button(
                     "＋ Select",
-                    key=f"select_{league['id']}",
+                    key=(
+                        f"select_"
+                        f"{league['id']}"
+                    ),
                     use_container_width=True,
                 ):
 
-                    add_league(league)
+                    add_league(
+                        league
+                    )
+
                     st.rerun()
 
 
@@ -945,31 +1636,54 @@ else:
 # SELECTED LEAGUES
 # ============================================================
 
-st.header("✅ Selected Leagues")
+st.header(
+    "✅ Selected Leagues"
+)
 
-selected = st.session_state.selected_leagues
+
+selected = (
+    st.session_state.selected_leagues
+)
+
 
 if not selected:
 
     st.info(
         "အခုထိ League မရွေးရသေးပါ။ "
-        "အပေါ်က Search Results ကနေ Select နှိပ်ပါ။"
+        "အပေါ်က Search Results ကနေ "
+        "Select နှိပ်ပါ။"
     )
+
 
 else:
 
     st.markdown(
         f"""
         <div class="info-card">
-            <b>Selected leagues: {len(selected)}</b>
+
+            <b>
+                Selected leagues:
+                {len(selected)}
+            </b>
+
+            <br><br>
+
+            ဒီ League တွေကိုပဲ
+            GET MATCHES နှိပ်တဲ့အခါ
+            API က ဖတ်ပါမယ်။
+
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+
     for league in selected:
 
-        c1, c2 = st.columns([6, 1])
+        c1, c2 = st.columns(
+            [6, 1]
+        )
+
 
         with c1:
 
@@ -982,9 +1696,14 @@ else:
                     </div>
 
                     <div class="league-meta">
+
                         🌍 {league["country"]}
+
                         &nbsp; • &nbsp;
-                        League ID: {league["id"]}
+
+                        League ID:
+                        {league["id"]}
+
                     </div>
 
                 </div>
@@ -992,15 +1711,22 @@ else:
                 unsafe_allow_html=True,
             )
 
+
         with c2:
 
             if st.button(
                 "✕ Remove",
-                key=f"remove_{league['id']}",
+                key=(
+                    f"remove_"
+                    f"{league['id']}"
+                ),
                 use_container_width=True,
             ):
 
-                remove_league(league["id"])
+                remove_league(
+                    league["id"]
+                )
+
                 st.rerun()
 
 
@@ -1008,95 +1734,85 @@ else:
 # SEASON
 # ============================================================
 
-st.header("📅 Season")
+st.header(
+    "📅 Season"
+)
+
 
 season = st.selectbox(
     "API Season",
     FREE_SEASONS,
-    index=FREE_SEASONS.index(2024),
-    format_func=lambda x: f"{x}/{str(x + 1)[-2:]}",
+    index=FREE_SEASONS.index(
+        2024
+    ),
+    format_func=lambda x:
+        f"{x}/{str(x + 1)[-2:]}",
 )
 
+
 st.caption(
-    "API-Football season ကို starting year နဲ့သတ်မှတ်ပါတယ်။ "
+    "API-Football season ကို "
+    "starting year နဲ့သတ်မှတ်ပါတယ်။ "
     "ဥပမာ 2024 = 2024/25."
 )
 
-if season not in FREE_SEASONS:
-
-    st.warning(
-        "ဒီ season ကို Free plan မှာ မရနိုင်နိုင်တာကြောင့် "
-        "request မပို့ပါ။"
-    )
-
 
 # ============================================================
-# SEARCH WINDOW
+# AUTOMATIC MMT WINDOW
 # ============================================================
 
-st.header("🕐 Search Window")
-
-default_from = date(season, 1, 1)
-default_to = date(season, 12, 31)
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    from_date = st.date_input(
-        "From",
-        value=default_from,
-        min_value=date(season, 1, 1),
-        max_value=date(season, 12, 31),
-    )
-
-with col2:
-
-    to_date = st.date_input(
-        "To",
-        value=default_to,
-        min_value=date(season, 1, 1),
-        max_value=date(season, 12, 31),
-    )
+st.header(
+    "🕐 Myanmar Time Match Window"
+)
 
 
-# ============================================================
-# DATE VALIDATION
-# ============================================================
-
-date_valid = from_date <= to_date
-
-if not date_valid:
-
-    st.error(
-        "From date က To date ထက် မနောက်ကျရပါ။"
-    )
+start_mmt, end_mmt = (
+    get_mmt_window()
+)
 
 
-# ============================================================
-# API REQUEST ESTIMATE
-# ============================================================
+start_display = start_mmt.strftime(
+    "%Y-%m-%d %I:%M %p"
+)
 
-st.subheader("📊 Request Estimate")
+end_display = end_mmt.strftime(
+    "%Y-%m-%d %I:%M %p"
+)
 
-league_count = len(selected)
 
 st.markdown(
     f"""
-    <div class="card">
+    <div class="info-card">
 
-        Selected leagues:
-        <b>{league_count}</b>
-
-        <br><br>
-
-        GET MATCHES နှိပ်ရင် အများဆုံး API calls:
-        <b>{league_count}</b>
+        <b>Automatic Search Window</b>
 
         <br><br>
 
-        Search League / Country / Select လုပ်တာတွေက
-        API request မစားပါ။
+        🇲🇲 Myanmar Time
+
+        <br><br>
+
+        <b>
+            {start_display}
+        </b>
+
+        <br>
+
+        ↓
+
+        <br>
+
+        <b>
+            {end_display}
+        </b>
+
+        <br><br>
+
+        အဓိပ္ပါယ်က
+        <b>ဒီနေ့ 12:00 PM ကနေ
+        နောက်နေ့ 12:00 PM</b>
+        အတွင်းကပွဲတွေကိုပဲ
+        ရှာပါမယ်။
 
     </div>
     """,
@@ -1105,10 +1821,70 @@ st.markdown(
 
 
 # ============================================================
+# REQUEST ESTIMATE
+# ============================================================
+
+st.subheader(
+    "📊 API Request Estimate"
+)
+
+
+league_count = len(
+    selected
+)
+
+
+st.markdown(
+    f"""
+    <div class="quota-box">
+
+        Selected Leagues:
+        <b>{league_count}</b>
+
+        <br><br>
+
+        Fixture Requests:
+        <b>{league_count}</b>
+
+        <br><br>
+
+        Safety Limit:
+        <b>{MAX_API_REQUESTS}</b>
+
+        <br><br>
+
+        League Search / Filter / Select:
+        <b>0 API requests</b>
+
+        <br><br>
+
+        GET MATCHES နှိပ်မှသာ
+        selected leagues အတွက်
+        API request ပို့ပါမယ်။
+
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+if league_count > MAX_API_REQUESTS:
+
+    st.error(
+        "Selected leagues အရေအတွက်က "
+        "80 ထက်ကျော်နေပါတယ်။ "
+        "GET MATCHES မလုပ်နိုင်ပါ။"
+    )
+
+
+# ============================================================
 # GET MATCHES
 # ============================================================
 
-st.header("⚽ Get Matches")
+st.header(
+    "⚽ Get Matches"
+)
+
 
 if st.button(
     "⚽ GET MATCHES",
@@ -1116,9 +1892,9 @@ if st.button(
     use_container_width=True,
 ):
 
-    # ----------------------------
-    # Validate selected leagues
-    # ----------------------------
+    # --------------------------------------------------------
+    # CHECK LEAGUES
+    # --------------------------------------------------------
 
     if not selected:
 
@@ -1128,110 +1904,259 @@ if st.button(
 
         st.stop()
 
-    # ----------------------------
-    # Validate dates
-    # ----------------------------
 
-    if not date_valid:
-
-        st.error(
-            "Date range မမှန်ပါ။"
-        )
-
-        st.stop()
-
-    # ----------------------------
-    # API key
-    # ----------------------------
+    # --------------------------------------------------------
+    # CHECK API KEY
+    # --------------------------------------------------------
 
     if not API_KEY:
 
         st.error(
             "API key မတွေ့ပါ။ "
-            "Streamlit Secrets ထဲမှာ API_KEY ထည့်ပါ။"
+            "Streamlit Secrets ထဲမှာ "
+            "API_KEY ထည့်ပါ။"
         )
 
         st.stop()
 
-    # ----------------------------
-    # Clear previous data
-    # ----------------------------
+
+    # --------------------------------------------------------
+    # RESET
+    # --------------------------------------------------------
 
     st.session_state.matches = []
+
     st.session_state.api_errors = []
+
     st.session_state.last_request_count = 0
 
+    st.session_state.quota_stop = False
+
+
     all_matches = []
+
     errors = []
 
-    # ----------------------------
-    # API calls
-    # ----------------------------
 
-    progress = st.progress(0)
+    # --------------------------------------------------------
+    # PROGRESS
+    # --------------------------------------------------------
 
-    total = len(selected)
+    progress = st.progress(
+        0
+    )
 
-    for index, league in enumerate(selected, start=1):
 
-        with st.spinner(
-            f"Loading {league['name']}..."
+    total = len(
+        selected
+    )
+
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    #
+    # Only SELECTED leagues are processed.
+    #
+    # No API request for unselected leagues.
+    # --------------------------------------------------------
+
+    for index, league in enumerate(
+        selected,
+        start=1
+    ):
+
+
+        # ----------------------------------------------------
+        # HARD 80 REQUEST STOP
+        # ----------------------------------------------------
+
+        if (
+            st.session_state
+            .last_request_count
+            >= MAX_API_REQUESTS
         ):
 
-            result = fetch_fixtures(
-                league,
-                season,
-                from_date,
-                to_date,
+            st.session_state.quota_stop = True
+
+            st.warning(
+                "🛑 API request safety limit "
+                "80 reached. "
+                "Processing stopped."
             )
 
-        st.session_state.last_request_count += 1
+            break
+
+
+        # ----------------------------------------------------
+        # LOAD ONE LEAGUE
+        # ----------------------------------------------------
+
+        with st.spinner(
+            f"Loading "
+            f"{league['name']}..."
+        ):
+
+            result = fetch_league_matches(
+                league,
+                season,
+                start_mmt.date(),
+                end_mmt.date(),
+            )
+
+
+        # ----------------------------------------------------
+        # API RESULT
+        # ----------------------------------------------------
+
+        if result.get(
+            "blocked",
+            False
+        ):
+
+            st.session_state.quota_stop = True
+
+            break
+
+
+        if result.get(
+            "rate_limited",
+            False
+        ):
+
+            errors.append(
+                {
+                    "league": league,
+                    "error": (
+                        "API rate limit "
+                        "reached (HTTP 429)."
+                    ),
+                }
+            )
+
+            st.warning(
+                "🛑 API returned HTTP 429. "
+                "Processing stopped."
+            )
+
+            break
+
 
         if result["ok"]:
 
-            data = result.get("data", {})
+            data = result.get(
+                "data",
+                {}
+            )
 
-            response_errors = data.get("errors")
+
+            response_errors = (
+                data.get(
+                    "errors"
+                )
+            )
+
 
             if response_errors:
 
                 errors.append(
                     {
                         "league": league,
-                        "error": format_api_error(result),
+                        "error": (
+                            format_api_error(
+                                result
+                            )
+                        ),
                     }
                 )
+
 
             else:
 
                 fixtures = data.get(
                     "response",
-                    [],
+                    []
                 )
 
-                all_matches.extend(fixtures)
+
+                # --------------------------------------------
+                # EXACT MMT FILTER
+                # --------------------------------------------
+
+                filtered = (
+                    filter_mmt_window(
+                        fixtures,
+                        start_mmt,
+                        end_mmt,
+                    )
+                )
+
+
+                all_matches.extend(
+                    filtered
+                )
+
 
         else:
 
             errors.append(
                 {
                     "league": league,
-                    "error": format_api_error(result),
+                    "error": (
+                        format_api_error(
+                            result
+                        )
+                    ),
                 }
             )
 
+
+        # ----------------------------------------------------
+        # PROGRESS
+        # ----------------------------------------------------
+
         progress.progress(
-            int(index / total * 100)
+            min(
+                100,
+                int(
+                    index
+                    / total
+                    * 100
+                )
+            )
         )
+
 
     progress.empty()
 
-    # ----------------------------
-    # Save
-    # ----------------------------
 
-    st.session_state.matches = all_matches
-    st.session_state.api_errors = errors
+    # --------------------------------------------------------
+    # SAVE
+    # --------------------------------------------------------
+
+    st.session_state.matches = (
+        all_matches
+    )
+
+    st.session_state.api_errors = (
+        errors
+    )
+
+
+    # --------------------------------------------------------
+    # SORT
+    # --------------------------------------------------------
+
+    st.session_state.matches.sort(
+        key=lambda x:
+        x.get(
+            "fixture",
+            {}
+        ).get(
+            "date",
+            ""
+        )
+    )
+
 
     st.rerun()
 
@@ -1240,9 +2165,15 @@ if st.button(
 # MATCH RESULTS
 # ============================================================
 
-st.header("📋 Match Results")
+st.header(
+    "📋 Match Results"
+)
 
-matches = st.session_state.matches
+
+matches = (
+    st.session_state.matches
+)
+
 
 if not matches:
 
@@ -1250,42 +2181,67 @@ if not matches:
         "No match data loaded yet."
     )
 
+
 else:
 
     st.success(
         f"{len(matches)} matches loaded."
     )
 
-    # Sort by fixture date
-    matches = sorted(
-        matches,
-        key=lambda x: x.get(
-            "fixture",
-            {}
-        ).get(
-            "date",
-            ""
-        ),
+
+    # --------------------------------------------------------
+    # SHOW EXACT WINDOW
+    # --------------------------------------------------------
+
+    st.markdown(
+        f"""
+        <div class="success-card">
+
+            🇲🇲 <b>Myanmar Time Window</b>
+
+            <br><br>
+
+            {start_display}
+
+            →
+
+            {end_display}
+
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+
 
     for match in matches:
 
-        render_match(match)
+        render_match(
+            match
+        )
 
 
 # ============================================================
 # API ERRORS
 # ============================================================
 
-errors = st.session_state.api_errors
+errors = (
+    st.session_state.api_errors
+)
+
 
 if errors:
 
-    st.header("⚠️ League / API Errors")
+    st.header(
+        "⚠️ League / API Errors"
+    )
+
 
     for item in errors:
 
-        league = item["league"]
+        league = item[
+            "league"
+        ]
+
 
         st.markdown(
             f"""
@@ -1296,17 +2252,28 @@ if errors:
                 </h3>
 
                 <div class="small">
-                    Country: {league["country"]}
+
+                    Country:
+                    {league["country"]}
+
                     <br>
-                    League ID: {league["id"]}
+
+                    League ID:
+                    {league["id"]}
+
                     <br>
-                    Season requested: {season}
+
+                    Season:
+                    {season}
+
                 </div>
 
                 <br>
 
                 <b>API Error:</b>
+
                 <br>
+
                 {item["error"]}
 
             </div>
@@ -1316,24 +2283,139 @@ if errors:
 
 
 # ============================================================
-# FREE PLAN NOTE
+# SAFETY STATUS
 # ============================================================
 
-st.header("ℹ️ Free Plan Information")
+st.header(
+    "🛡️ API Safety Status"
+)
+
+
+request_count = (
+    st.session_state.last_request_count
+)
+
+
+if request_count >= MAX_API_REQUESTS:
+
+    st.markdown(
+        """
+        <div class="error-card">
+
+            🛑 <b>API SAFETY STOP</b>
+
+            <br><br>
+
+            80 requests reached.
+
+            <br>
+
+            No further API requests
+            will be sent by this app.
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+else:
+
+    remaining = (
+        MAX_API_REQUESTS
+        - request_count
+    )
+
+
+    st.markdown(
+        f"""
+        <div class="card">
+
+            Requests used:
+            <b>{request_count}</b>
+            / {MAX_API_REQUESTS}
+
+            <br><br>
+
+            Local safety remaining:
+            <b>{remaining}</b>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# IMPORTANT NOTES
+# ============================================================
+
+st.header(
+    "ℹ️ How This Version Works"
+)
+
 
 st.markdown(
     """
     <div class="warning-card">
 
-        <b>API-Football Free Plan</b>
+        <b>1. League Search</b>
+
+        <br>
+
+        Local catalogue ကိုပဲ search လုပ်တာဖြစ်လို့
+        API request မစားပါ။
 
         <br><br>
 
-        • Daily request quota ကန့်သတ်ထားပါတယ်။<br>
-        • Available seasons ကလည်း Free plan အတွက် ကန့်သတ်ထားပါတယ်။<br>
-        • League Search / Filter / Select တွေက API request မစားပါ။<br>
-        • GET MATCHES နှိပ်တဲ့အချိန်မှာသာ API request ပို့ပါတယ်။<br>
-        • League တစ်ခု error ဖြစ်ရင် အခြား League တွေကို မပျက်စီးစေဘဲ ဆက်လုပ်ပါတယ်။
+        <b>2. League Selection</b>
+
+        <br>
+
+        ကိုယ်ရွေးထားတဲ့ League တွေကိုပဲ
+        GET MATCHES လုပ်တဲ့အခါ API က ဖတ်ပါမယ်။
+
+        <br><br>
+
+        <b>3. Myanmar Time</b>
+
+        <br>
+
+        ပွဲရှာတဲ့ window က
+        ဒီနေ့ 12:00 PM MMT →
+        နောက်နေ့ 12:00 PM MMT ဖြစ်ပါတယ်။
+
+        <br><br>
+
+        <b>4. API Safety</b>
+
+        <br>
+
+        API request 80 ရောက်တာနဲ့
+        နောက်ထပ် request မပို့တော့ပါ။
+
+        <br><br>
+
+        <b>5. xG</b>
+
+        <br>
+
+        ဒီ version မှာ xG မပါပါ။
+        API က xG မပေးနိုင်တဲ့အတွက်
+        မတွက်ထားပါ။
+
+        <br><br>
+
+        <b>6. Model</b>
+
+        <br>
+
+        ဒီ version ရဲ့ ရည်ရွယ်ချက်က
+        အရင်ဆုံး League → Fixture
+        fetching ကို တည်ငြိမ်အောင်လုပ်တာပါ။
+        O2.5 / Under / BTTS model ကို
+        ဒီအဆင့်မှာ API fixture fetching နဲ့
+        မရောထားပါ။
 
     </div>
     """,
@@ -1345,8 +2427,12 @@ st.markdown(
 # FOOTER
 # ============================================================
 
-st.markdown("---")
+st.markdown(
+    "---"
+)
+
 
 st.caption(
-    "Football Prematch Dashboard • API-Football"
+    "Football Prematch Dashboard • "
+    "API-Football • Myanmar Time"
 )
