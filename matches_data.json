@@ -1,17 +1,14 @@
 {
-  "updated_at": "2026-08-19 10:31 AM MMT",
-  "mode": "CHAMPIONS_LEAGUE_ONLY",
-  "window_start": "2026-08-19T12:00:00+06:30",
-  "window_end": "2026-08-20T12:00:00+06:30",
-  "history_range": {
-    "from": "2026-04-21",
-    "to": "2026-08-18",
-    "days": 120,
-    "seasons": [
-      2025,
-      2026
-    ]
-  },
+  "updated_at": "2026-08-19 11:16 MMT",
+  "window_range": "2026-08-19 12:00 PM - 2026-08-20 12:00 PM MMT",
+  "mode": "CHAMPIONS_LEAGUE_TEST",
+  "league_filter": "UEFA Champions League ONLY",
+  "history_season": 2024,
+  "history_data_type": "2024 season historical proxy",
+  "current_form_available": false,
+  "warning": "Free API plan does not provide 2025/2026 team history. Probability and Edge use 2024 historical proxy data and must NOT be interpreted as current 2026 form.",
+  "api_calls_this_run": 10,
+  "remaining_quota": 75,
   "total_matches": 4,
   "matches": [
     {
@@ -23,56 +20,112 @@
       "date": "2026-08-20",
       "time": "01:30",
       "status": "NS",
-      "signal": "DATA_UNAVAILABLE",
-      "prob": null,
-      "edge": null,
-      "over_prob": null,
-      "under_prob": null,
+      "signal": "OVER_2_5",
+      "prob": 78.5,
+      "edge": 18.5,
+      "model_status": "PROXY_MODEL_2024_25",
+      "data_warning": "Historical proxy from 2024 season. NOT current 2026 form.",
       "h_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 80.0,
+        "under_pct": 20.0,
+        "btts_pct": 80.0,
+        "gf_avg": 2.8,
+        "ga_avg": 1.2,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-17",
+            "home": "Celtic",
+            "away": "ST Mirren",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-10",
+            "home": "Celtic",
+            "away": "Hibernian",
+            "gh": 3,
+            "ga": 1,
+            "tot": 4
+          },
+          {
+            "date": "2025-04-12",
+            "home": "Celtic",
+            "away": "Kilmarnock",
+            "gh": 5,
+            "ga": 1,
+            "tot": 6
+          },
+          {
+            "date": "2025-03-29",
+            "home": "Celtic",
+            "away": "Heart Of Midlothian",
+            "gh": 3,
+            "ga": 0,
+            "tot": 3
+          },
+          {
+            "date": "2025-03-16",
+            "home": "Celtic",
+            "away": "Rangers",
+            "gh": 2,
+            "ga": 3,
+            "tot": 5
           }
         ]
       },
       "a_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 60.0,
+        "under_pct": 40.0,
+        "btts_pct": 40.0,
+        "gf_avg": 1.6,
+        "ga_avg": 1.2,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-06-01",
+            "home": "Rapid Vienna",
+            "away": "Lask Linz",
+            "gh": 3,
+            "ga": 0,
+            "tot": 3
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-17",
+            "home": "Grazer AK",
+            "away": "Lask Linz",
+            "gh": 1,
+            "ga": 0,
+            "tot": 1
+          },
+          {
+            "date": "2025-05-03",
+            "home": "WSG Wattens",
+            "away": "Lask Linz",
+            "gh": 1,
+            "ga": 3,
+            "tot": 4
+          },
+          {
+            "date": "2025-04-22",
+            "home": "Austria Klagenfurt",
+            "away": "Lask Linz",
+            "gh": 1,
+            "ga": 4,
+            "tot": 5
+          },
+          {
+            "date": "2025-04-12",
+            "home": "TSV Hartberg",
+            "away": "Lask Linz",
+            "gh": 0,
+            "ga": 1,
+            "tot": 1
           }
         ]
       }
@@ -86,119 +139,112 @@
       "date": "2026-08-20",
       "time": "01:30",
       "status": "NS",
-      "signal": "DATA_UNAVAILABLE",
-      "prob": null,
-      "edge": null,
-      "over_prob": null,
-      "under_prob": null,
+      "signal": "OVER_2_5",
+      "prob": 82.5,
+      "edge": 22.5,
+      "model_status": "PROXY_MODEL_2024_25",
+      "data_warning": "Historical proxy from 2024 season. NOT current 2026 form.",
       "h_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 80.0,
+        "under_pct": 20.0,
+        "btts_pct": 60.0,
+        "gf_avg": 3.0,
+        "ga_avg": 1.0,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-24",
+            "home": "Hapoel Beer Sheva",
+            "away": "Hapoel Haifa",
+            "gh": 5,
+            "ga": 0,
+            "tot": 5
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-12",
+            "home": "Hapoel Beer Sheva",
+            "away": "Maccabi Haifa",
+            "gh": 4,
+            "ga": 1,
+            "tot": 5
+          },
+          {
+            "date": "2025-04-14",
+            "home": "Hapoel Beer Sheva",
+            "away": "Beitar Jerusalem",
+            "gh": 3,
+            "ga": 1,
+            "tot": 4
+          },
+          {
+            "date": "2025-03-31",
+            "home": "Hapoel Beer Sheva",
+            "away": "Maccabi Tel Aviv",
+            "gh": 1,
+            "ga": 3,
+            "tot": 4
+          },
+          {
+            "date": "2025-03-15",
+            "home": "Hapoel Beer Sheva",
+            "away": "Maccabi Netanya",
+            "gh": 2,
+            "ga": 0,
+            "tot": 2
           }
         ]
       },
       "a_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 60.0,
+        "under_pct": 40.0,
+        "btts_pct": 100.0,
+        "gf_avg": 1.6,
+        "ga_avg": 1.4,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-31",
+            "home": "Qarabag",
+            "away": "Sabah FA",
+            "gh": 2,
+            "ga": 3,
+            "tot": 5
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
-          }
-        ]
-      }
-    },
-    {
-      "fixture_id": 1622624,
-      "league": "UEFA Champions League",
-      "country": "World",
-      "home": "NEC Nijmegen",
-      "away": "Bodo/Glimt",
-      "date": "2026-08-20",
-      "time": "01:30",
-      "status": "NS",
-      "signal": "DATA_UNAVAILABLE",
-      "prob": null,
-      "edge": null,
-      "over_prob": null,
-      "under_prob": null,
-      "h_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
-          {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-17",
+            "home": "Zira",
+            "away": "Sabah FA",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
-          }
-        ]
-      },
-      "a_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
-          {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-03",
+            "home": "Araz",
+            "away": "Sabah FA",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-04-12",
+            "home": "Turan",
+            "away": "Sabah FA",
+            "gh": 2,
+            "ga": 1,
+            "tot": 3
+          },
+          {
+            "date": "2025-04-02",
+            "home": "Neftchi Baku",
+            "away": "Sabah FA",
+            "gh": 1,
+            "ga": 2,
+            "tot": 3
           }
         ]
       }
@@ -212,56 +258,231 @@
       "date": "2026-08-20",
       "time": "01:30",
       "status": "NS",
-      "signal": "DATA_UNAVAILABLE",
-      "prob": null,
-      "edge": null,
-      "over_prob": null,
-      "under_prob": null,
+      "signal": "OVER_2_5",
+      "prob": 80.5,
+      "edge": 20.5,
+      "model_status": "PROXY_MODEL_2024_25",
+      "data_warning": "Historical proxy from 2024 season. NOT current 2026 form.",
       "h_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 80.0,
+        "under_pct": 20.0,
+        "btts_pct": 80.0,
+        "gf_avg": 2.4,
+        "ga_avg": 1.4,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-17",
+            "home": "Slovan Bratislava",
+            "away": "FK Košice",
+            "gh": 1,
+            "ga": 0,
+            "tot": 1
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-03",
+            "home": "Slovan Bratislava",
+            "away": "Žilina",
+            "gh": 4,
+            "ga": 3,
+            "tot": 7
+          },
+          {
+            "date": "2025-04-12",
+            "home": "Slovan Bratislava",
+            "away": "Dunajska Streda",
+            "gh": 2,
+            "ga": 2,
+            "tot": 4
+          },
+          {
+            "date": "2025-04-02",
+            "home": "Slovan Bratislava",
+            "away": "Spartak Trnava",
+            "gh": 2,
+            "ga": 1,
+            "tot": 3
+          },
+          {
+            "date": "2025-03-29",
+            "home": "Slovan Bratislava",
+            "away": "Podbrezová",
+            "gh": 3,
+            "ga": 1,
+            "tot": 4
           }
         ]
       },
       "a_stats": {
-        "status": "INSUFFICIENT_L5_DATA",
-        "matches_found": 0,
-        "over_pct": null,
-        "under_pct": null,
-        "btts_pct": null,
-        "gf_avg": null,
-        "ga_avg": null,
-        "scorelines": [],
-        "error": [
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 60.0,
+        "under_pct": 40.0,
+        "btts_pct": 60.0,
+        "gf_avg": 3.4,
+        "ga_avg": 0.6,
+        "scorelines": [
           {
-            "season": 2025,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-18",
+            "home": "Nafta",
+            "away": "Celje",
+            "gh": 1,
+            "ga": 6,
+            "tot": 7
           },
           {
-            "season": 2026,
-            "errors": {
-              "plan": "Free plans do not have access to this season, try from 2022 to 2024."
-            }
+            "date": "2025-05-14",
+            "home": "Koper",
+            "away": "Celje",
+            "gh": 0,
+            "ga": 4,
+            "tot": 4
+          },
+          {
+            "date": "2025-05-07",
+            "home": "Maribor",
+            "away": "Celje",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
+          },
+          {
+            "date": "2025-05-04",
+            "home": "Primorje",
+            "away": "Celje",
+            "gh": 0,
+            "ga": 5,
+            "tot": 5
+          },
+          {
+            "date": "2025-04-30",
+            "home": "Koper",
+            "away": "Celje",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
+          }
+        ]
+      }
+    },
+    {
+      "fixture_id": 1622624,
+      "league": "UEFA Champions League",
+      "country": "World",
+      "home": "NEC Nijmegen",
+      "away": "Bodo/Glimt",
+      "date": "2026-08-20",
+      "time": "01:30",
+      "status": "NS",
+      "signal": "NEUTRAL",
+      "prob": 89.0,
+      "edge": 29.0,
+      "model_status": "PROXY_MODEL_2024_25",
+      "data_warning": "Historical proxy from 2024 season. NOT current 2026 form.",
+      "h_stats": {
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 80.0,
+        "under_pct": 20.0,
+        "btts_pct": 80.0,
+        "gf_avg": 2.2,
+        "ga_avg": 1.6,
+        "scorelines": [
+          {
+            "date": "2025-05-14",
+            "home": "NEC Nijmegen",
+            "away": "NAC Breda",
+            "gh": 3,
+            "ga": 0,
+            "tot": 3
+          },
+          {
+            "date": "2025-05-03",
+            "home": "NEC Nijmegen",
+            "away": "Willem II",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
+          },
+          {
+            "date": "2025-04-11",
+            "home": "NEC Nijmegen",
+            "away": "Waalwijk",
+            "gh": 2,
+            "ga": 1,
+            "tot": 3
+          },
+          {
+            "date": "2025-03-29",
+            "home": "NEC Nijmegen",
+            "away": "AZ Alkmaar",
+            "gh": 3,
+            "ga": 3,
+            "tot": 6
+          },
+          {
+            "date": "2025-03-09",
+            "home": "NEC Nijmegen",
+            "away": "GO Ahead Eagles",
+            "gh": 2,
+            "ga": 3,
+            "tot": 5
+          }
+        ]
+      },
+      "a_stats": {
+        "status": "PROXY_2024_25",
+        "data_source": "API-SPORTS 2024 season (historical proxy; NOT current 2026 form)",
+        "sample_size": 5,
+        "over_pct": 80.0,
+        "under_pct": 20.0,
+        "btts_pct": 100.0,
+        "gf_avg": 1.0,
+        "ga_avg": 2.2,
+        "scorelines": [
+          {
+            "date": "2025-05-01",
+            "home": "Tottenham",
+            "away": "Bodo/Glimt",
+            "gh": 3,
+            "ga": 1,
+            "tot": 4
+          },
+          {
+            "date": "2025-04-17",
+            "home": "Lazio",
+            "away": "Bodo/Glimt",
+            "gh": 3,
+            "ga": 1,
+            "tot": 4
+          },
+          {
+            "date": "2025-03-13",
+            "home": "Olympiakos Piraeus",
+            "away": "Bodo/Glimt",
+            "gh": 2,
+            "ga": 1,
+            "tot": 3
+          },
+          {
+            "date": "2025-02-13",
+            "home": "Twente",
+            "away": "Bodo/Glimt",
+            "gh": 2,
+            "ga": 1,
+            "tot": 3
+          },
+          {
+            "date": "2025-01-30",
+            "home": "Nice",
+            "away": "Bodo/Glimt",
+            "gh": 1,
+            "ga": 1,
+            "tot": 2
           }
         ]
       }
