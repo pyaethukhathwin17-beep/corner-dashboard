@@ -2,38 +2,43 @@ import streamlit as st
 import requests
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
-import pandas as pd
 
-# ============================================================
+# =========================================================
 # APP CONFIG
-# ============================================================
+# =========================================================
 
 st.set_page_config(
-    page_title="Football Match Finder",
+    page_title="Football Match Analyzer",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 API_BASE = "https://v3.football.api-sports.io"
-MYANMAR_TZ = ZoneInfo("Asia/Yangon")
+MMT = ZoneInfo("Asia/Yangon")
 
-# ============================================================
-# CSS
-# ============================================================
+
+# =========================================================
+# CUSTOM CSS
+# =========================================================
 
 st.markdown(
     """
     <style>
+
     .stApp {
         background: #0b0e14;
-        color: #f4f6f8;
+        color: #f2f5f8;
     }
 
     .block-container {
         max-width: 1100px;
         padding-top: 2rem;
         padding-bottom: 4rem;
+    }
+
+    h1, h2, h3 {
+        color: #f4f6f8 !important;
     }
 
     .title {
@@ -49,72 +54,82 @@ st.markdown(
     }
 
     .card {
-        background: #171c25;
+        background: #171c24;
         border: 1px solid #303846;
         border-radius: 18px;
         padding: 20px;
-        margin-bottom: 18px;
+        margin: 12px 0;
     }
 
-    .card-title {
-        font-size: 18px;
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-
-    .blue-card {
-        background: #172a42;
-        border-radius: 16px;
-        padding: 18px;
-        margin: 15px 0;
+    .info-card {
+        background: #17283f;
+        border: 1px solid #29415f;
+        border-radius: 18px;
+        padding: 20px;
+        margin: 12px 0;
     }
 
     .success-card {
-        background: #142b20;
-        border: 1px solid #2f6b4a;
-        border-radius: 16px;
-        padding: 18px;
-        margin: 15px 0;
+        background: #10251b;
+        border: 1px solid #2f714b;
+        border-radius: 18px;
+        padding: 20px;
+        margin: 12px 0;
     }
 
     .warning-card {
-        background: #3b3b0d;
-        border: 1px solid #676719;
-        border-radius: 16px;
-        padding: 18px;
-        margin: 15px 0;
+        background: #383b12;
+        border: 1px solid #696d1e;
+        border-radius: 18px;
+        padding: 20px;
+        margin: 12px 0;
     }
 
     .error-card {
-        background: #3a1d22;
-        border: 1px solid #7a343e;
-        border-radius: 16px;
-        padding: 18px;
-        margin: 15px 0;
+        background: #32191d;
+        border: 1px solid #78343d;
+        border-radius: 18px;
+        padding: 20px;
+        margin: 12px 0;
+    }
+
+    .league-item {
+        background: #151a22;
+        border: 1px solid #323a47;
+        border-radius: 14px;
+        padding: 14px;
+        margin: 8px 0;
+    }
+
+    .league-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #f3f5f7;
+    }
+
+    .league-meta {
+        color: #9aa4b2;
+        font-size: 14px;
+        margin-top: 4px;
     }
 
     .match-card {
         background: #151a22;
         border: 1px solid #303846;
-        border-radius: 18px;
+        border-radius: 16px;
         padding: 18px;
-        margin-bottom: 14px;
+        margin: 10px 0;
     }
 
-    .team {
+    .team-name {
         font-size: 19px;
         font-weight: 700;
     }
 
-    .league-name {
-        color: #8db8ff;
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    .kickoff {
-        font-size: 20px;
-        font-weight: 800;
+    .match-time {
+        font-size: 18px;
+        font-weight: 700;
+        color: #58a6ff;
     }
 
     .small {
@@ -122,30 +137,21 @@ st.markdown(
         font-size: 13px;
     }
 
-    div[data-testid="stSelectbox"] label {
-        font-weight: 700;
-    }
-
-    div[data-testid="stTextInput"] label {
-        font-weight: 700;
-    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# SESSION STATE
-# ============================================================
 
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+# =========================================================
+# SESSION STATE
+# =========================================================
 
 if "league_results" not in st.session_state:
     st.session_state.league_results = []
 
-if "selected_league" not in st.session_state:
-    st.session_state.selected_league = None
+if "selected_leagues" not in st.session_state:
+    st.session_state.selected_leagues = []
 
 if "matches" not in st.session_state:
     st.session_state.matches = []
@@ -153,1504 +159,1027 @@ if "matches" not in st.session_state:
 if "last_search" not in st.session_state:
     st.session_state.last_search = ""
 
-if "api_remaining" not in st.session_state:
-    st.session_state.api_remaining = None
+if "last_match_search" not in st.session_state:
+    st.session_state.last_match_search = None
 
-# ============================================================
+
+# =========================================================
 # API KEY
-# ============================================================
+# =========================================================
 
-def get_api_key():
-    """
-    Priority:
-    1. Streamlit secrets
-    2. Session state
-    3. User input
-    """
-
-    key = ""
-
+def get_secret_api_key():
     try:
-        key = st.secrets.get("API_FOOTBALL_KEY", "")
+        if "API_KEY" in st.secrets:
+            return str(st.secrets["API_KEY"]).strip()
+
+        if "api_key" in st.secrets:
+            return str(st.secrets["api_key"]).strip()
+
     except Exception:
-        key = ""
+        pass
 
-    if key:
-        return key
+    return ""
 
-    return st.session_state.api_key
 
+secret_key = get_secret_api_key()
 
-# ============================================================
-# API REQUEST
-# ============================================================
 
-def api_get(endpoint, params=None):
-    """
-    Safe API-Football GET request.
-
-    Returns:
-        data, headers, error
-    """
-
-    api_key = get_api_key()
-
-    if not api_key:
-        return None, {}, "API key မထည့်ရသေးပါ။"
-
-    url = f"{API_BASE}/{endpoint}"
-
-    headers = {
-        "x-apisports-key": api_key,
-        "Accept": "application/json",
-    }
-
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params or {},
-            timeout=25,
-        )
-
-    except requests.exceptions.Timeout:
-        return None, {}, "API request timeout ဖြစ်သွားပါတယ်။"
-
-    except requests.exceptions.ConnectionError:
-        return None, {}, "API server ကို ချိတ်ဆက်မရပါ။ Internet connection စစ်ပါ။"
-
-    except Exception as e:
-        return None, {}, f"Request error: {str(e)}"
-
-    remaining = response.headers.get(
-        "x-ratelimit-requests-remaining"
-    )
-
-    if remaining is not None:
-        st.session_state.api_remaining = remaining
-
-    try:
-        data = response.json()
-    except Exception:
-        data = {}
-
-    # --------------------------------------------------------
-    # HTTP errors
-    # --------------------------------------------------------
-
-    if response.status_code == 429:
-        return (
-            None,
-            response.headers,
-            "API quota / rate limit ကျော်သွားပါတယ်။ "
-            "ခဏစောင့်ပြီး ပြန်စမ်းပါ။",
-        )
-
-    if response.status_code >= 400:
-        error_text = ""
-
-        if isinstance(data, dict):
-            error_text = str(data.get("errors", ""))
-
-        return (
-            None,
-            response.headers,
-            f"API HTTP {response.status_code}: {error_text}",
-        )
-
-    # --------------------------------------------------------
-    # API internal errors
-    # --------------------------------------------------------
-
-    if isinstance(data, dict):
-
-        errors = data.get("errors")
-
-        if errors:
-            return (
-                None,
-                response.headers,
-                f"API error: {errors}",
-            )
-
-    return data, response.headers, None
-
-
-# ============================================================
-# MMT TIME
-# ============================================================
-
-def now_mmt():
-    return datetime.now(MYANMAR_TZ)
-
-
-def get_mmt_search_window():
-    """
-    EXACT WINDOW:
-
-    Today 12:00 PM MMT
-        ->
-    Tomorrow 12:00 PM MMT
-    """
-
-    now = now_mmt()
-
-    today = now.date()
-
-    start_dt = datetime.combine(
-        today,
-        time(12, 0),
-        tzinfo=MYANMAR_TZ,
-    )
-
-    end_dt = start_dt + timedelta(days=1)
-
-    return start_dt, end_dt
-
-
-# ============================================================
-# CURRENT SEASON
-# ============================================================
-
-def guess_current_season():
-    """
-    API-Football season is represented by starting year.
-
-    Example:
-        2025/26 = 2025
-        2026/27 = 2026
-
-    This is only a default suggestion.
-    """
-
-    now = now_mmt()
-
-    return now.year
-
-
-# ============================================================
-# SEARCH LEAGUES
-# ============================================================
-
-def search_leagues(search_text):
-    """
-    Search API-Football league catalogue.
-
-    IMPORTANT:
-    We DO NOT send season=current here.
-
-    This prevents the previous:
-        Free plans do not have access to this season
-    error from breaking the League Filter.
-    """
-
-    search_text = search_text.strip()
-
-    if len(search_text) < 3:
-        return [], "အနည်းဆုံး စာလုံး 3 လုံး ရိုက်ပါ။"
-
-    data, headers, error = api_get(
-        "leagues",
-        {
-            "search": search_text,
-        },
-    )
-
-    if error:
-        return [], error
-
-    if not data:
-        return [], "API response မရပါ။"
-
-    response = data.get("response", [])
-
-    results = []
-
-    for item in response:
-
-        league = item.get("league", {})
-        country = item.get("country", {})
-
-        league_id = league.get("id")
-        league_name = league.get("name")
-        league_type = league.get("type")
-        country_name = country.get("name")
-
-        if league_id is None or not league_name:
-            continue
-
-        seasons = item.get("seasons", [])
-
-        season_years = []
-
-        for s in seasons:
-            year = s.get("year")
-
-            if year is not None:
-                season_years.append(year)
-
-        season_years = sorted(
-            list(set(season_years)),
-            reverse=True,
-        )
-
-        results.append(
-            {
-                "id": league_id,
-                "name": league_name,
-                "country": country_name or "",
-                "type": league_type or "",
-                "seasons": season_years,
-            }
-        )
-
-    # Remove duplicates
-    unique = {}
-
-    for r in results:
-        key = (r["id"], r["name"])
-
-        if key not in unique:
-            unique[key] = r
-
-    results = list(unique.values())
-
-    results.sort(
-        key=lambda x: (
-            x["name"].lower(),
-            x["country"].lower(),
-        )
-    )
-
-    return results, None
-
-
-# ============================================================
-# POPULAR LEAGUES
-# ============================================================
-
-POPULAR_LEAGUES = [
-    {
-        "id": 39,
-        "name": "Premier League",
-        "country": "England",
-    },
-    {
-        "id": 140,
-        "name": "La Liga",
-        "country": "Spain",
-    },
-    {
-        "id": 78,
-        "name": "Bundesliga",
-        "country": "Germany",
-    },
-    {
-        "id": 135,
-        "name": "Serie A",
-        "country": "Italy",
-    },
-    {
-        "id": 61,
-        "name": "Ligue 1",
-        "country": "France",
-    },
-    {
-        "id": 88,
-        "name": "Eredivisie",
-        "country": "Netherlands",
-    },
-    {
-        "id": 94,
-        "name": "Primeira Liga",
-        "country": "Portugal",
-    },
-    {
-        "id": 203,
-        "name": "Süper Lig",
-        "country": "Turkey",
-    },
-    {
-        "id": 119,
-        "name": "Superliga",
-        "country": "Denmark",
-    },
-    {
-        "id": 103,
-        "name": "Eliteserien",
-        "country": "Norway",
-    },
-    {
-        "id": 113,
-        "name": "Allsvenskan",
-        "country": "Sweden",
-    },
-    {
-        "id": 106,
-        "name": "Ekstraklasa",
-        "country": "Poland",
-    },
-    {
-        "id": 188,
-        "name": "A-League",
-        "country": "Australia",
-    },
-    {
-        "id": 253,
-        "name": "Major League Soccer",
-        "country": "USA",
-    },
-    {
-        "id": 262,
-        "name": "Liga MX",
-        "country": "Mexico",
-    },
-    {
-        "id": 307,
-        "name": "Saudi Pro League",
-        "country": "Saudi Arabia",
-    },
-    {
-        "id": 98,
-        "name": "J1 League",
-        "country": "Japan",
-    },
-    {
-        "id": 292,
-        "name": "K League 1",
-        "country": "South Korea",
-    },
-    {
-        "id": 71,
-        "name": "Serie A",
-        "country": "Brazil",
-    },
-    {
-        "id": 128,
-        "name": "Liga Profesional Argentina",
-        "country": "Argentina",
-    },
-    {
-        "id": 2,
-        "name": "UEFA Champions League",
-        "country": "World",
-    },
-    {
-        "id": 3,
-        "name": "UEFA Europa League",
-        "country": "World",
-    },
-    {
-        "id": 848,
-        "name": "UEFA Europa Conference League",
-        "country": "World",
-    },
-]
-
-# ============================================================
-# FORMAT LEAGUE OPTION
-# ============================================================
-
-def league_label(item):
-
-    if item.get("country"):
-        return (
-            f'{item["name"]} — '
-            f'{item["country"]} '
-            f'(ID {item["id"]})'
-        )
-
-    return (
-        f'{item["name"]} '
-        f'(ID {item["id"]})'
-    )
-
-
-# ============================================================
-# GET FIXTURES
-# ============================================================
-
-def get_fixtures_for_window(
-    league_id,
-    season,
-    start_dt,
-    end_dt,
-):
-    """
-    Query two calendar dates because our actual window is:
-
-        today 12:00 MMT
-        ->
-        tomorrow 12:00 MMT
-
-    API-Football returns fixture timestamps using the requested
-    timezone.
-    """
-
-    start_date = start_dt.date()
-    end_date = end_dt.date()
-
-    all_matches = []
-
-    dates_to_query = [
-        start_date,
-        end_date,
-    ]
-
-    for d in dates_to_query:
-
-        params = {
-            "league": league_id,
-            "season": season,
-            "date": d.isoformat(),
-            "timezone": "Asia/Yangon",
-        }
-
-        data, headers, error = api_get(
-            "fixtures",
-            params,
-        )
-
-        if error:
-            return [], error
-
-        if not data:
-            continue
-
-        response = data.get("response", [])
-
-        all_matches.extend(response)
-
-    # --------------------------------------------------------
-    # Remove duplicate fixture IDs
-    # --------------------------------------------------------
-
-    unique = {}
-
-    for match in all_matches:
-
-        fixture = match.get("fixture", {})
-
-        fixture_id = fixture.get("id")
-
-        if fixture_id is not None:
-            unique[fixture_id] = match
-
-    all_matches = list(unique.values())
-
-    # --------------------------------------------------------
-    # EXACT MMT WINDOW FILTER
-    # --------------------------------------------------------
-
-    filtered = []
-
-    for match in all_matches:
-
-        fixture = match.get("fixture", {})
-
-        fixture_date = fixture.get("date")
-
-        if not fixture_date:
-            continue
-
-        try:
-            dt = datetime.fromisoformat(
-                fixture_date.replace(
-                    "Z",
-                    "+00:00",
-                )
-            )
-
-            # API already returned Asia/Yangon timezone,
-            # but normalize again for safety.
-            dt_mmt = dt.astimezone(MYANMAR_TZ)
-
-        except Exception:
-            continue
-
-        if start_dt <= dt_mmt < end_dt:
-
-            match["_mmt_datetime"] = dt_mmt
-
-            filtered.append(match)
-
-    filtered.sort(
-        key=lambda x: x["_mmt_datetime"]
-    )
-
-    return filtered, None
-
-
-# ============================================================
-# MATCH STATUS
-# ============================================================
-
-def get_status_text(match):
-
-    status = (
-        match
-        .get("fixture", {})
-        .get("status", {})
-    )
-
-    short = status.get("short", "")
-    long_text = status.get("long", "")
-
-    if short == "NS":
-        return "NOT STARTED"
-
-    if short == "TBD":
-        return "TIME TBD"
-
-    if short in ["1H", "HT", "2H", "ET", "BT", "P"]:
-        return f"LIVE — {long_text}"
-
-    if short in ["FT", "AET", "PEN"]:
-        return f"FINISHED — {long_text}"
-
-    if short == "PST":
-        return "POSTPONED"
-
-    if short == "CANC":
-        return "CANCELLED"
-
-    return long_text or short or "UNKNOWN"
-
-
-# ============================================================
-# MATCH CARD
-# ============================================================
-
-def render_match(match):
-
-    fixture = match.get("fixture", {})
-    league = match.get("league", {})
-    teams = match.get("teams", {})
-    goals = match.get("goals", {})
-
-    home = teams.get("home", {})
-    away = teams.get("away", {})
-
-    home_name = home.get("name", "Home")
-    away_name = away.get("name", "Away")
-
-    home_logo = home.get("logo", "")
-    away_logo = away.get("logo", "")
-
-    league_name = league.get(
-        "name",
-        "Unknown League",
-    )
-
-    country = league.get(
-        "country",
-        "",
-    )
-
-    fixture_id = fixture.get(
-        "id",
-        "",
-    )
-
-    dt_mmt = match.get(
-        "_mmt_datetime"
-    )
-
-    if dt_mmt:
-
-        date_text = dt_mmt.strftime(
-            "%Y-%m-%d"
-        )
-
-        time_text = dt_mmt.strftime(
-            "%I:%M %p"
-        )
-
-    else:
-
-        date_text = "-"
-        time_text = "-"
-
-    status = get_status_text(match)
-
-    home_score = goals.get("home")
-    away_score = goals.get("away")
-
-    score_text = ""
-
-    if home_score is not None or away_score is not None:
-
-        home_score = (
-            "-" if home_score is None
-            else str(home_score)
-        )
-
-        away_score = (
-            "-" if away_score is None
-            else str(away_score)
-        )
-
-        score_text = (
-            f'<div class="kickoff">'
-            f'{home_score} : {away_score}'
-            f'</div>'
-        )
-
-    else:
-
-        score_text = (
-            '<div class="small">'
-            'PRE-MATCH'
-            '</div>'
-        )
-
-    st.markdown(
-        f"""
-        <div class="match-card">
-
-            <div class="league-name">
-                🏆 {league_name}
-                {" — " + country if country else ""}
-            </div>
-
-            <div style="margin-top:10px;">
-                <span class="small">
-                    Fixture ID: {fixture_id}
-                </span>
-            </div>
-
-            <div style="
-                display:flex;
-                justify-content:space-between;
-                align-items:center;
-                gap:20px;
-                margin-top:14px;
-            ">
-
-                <div style="flex:1;">
-                    {
-                        f'<img src="{home_logo}" width="35">'
-                        if home_logo else ""
-                    }
-                    <span class="team">
-                        {home_name}
-                    </span>
-                </div>
-
-                <div style="
-                    text-align:center;
-                    min-width:100px;
-                ">
-
-                    <div class="small">
-                        {date_text} MMT
-                    </div>
-
-                    {score_text}
-
-                    <div class="small">
-                        {time_text}
-                    </div>
-
-                </div>
-
-                <div style="
-                    flex:1;
-                    text-align:right;
-                ">
-
-                    <span class="team">
-                        {away_name}
-                    </span>
-
-                    {
-                        f'<img src="{away_logo}" width="35">'
-                        if away_logo else ""
-                    }
-
-                </div>
-
-            </div>
-
-            <div style="
-                margin-top:14px;
-                color:#9aa4b2;
-                font-size:13px;
-            ">
-                Status: {status}
-            </div>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
+# =========================================================
 # HEADER
-# ============================================================
+# =========================================================
 
 st.markdown(
-    '<div class="title">⚽ Football Match Finder</div>',
+    '<div class="title">⚽ Football Match Analyzer</div>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
     '<div class="subtitle">'
-    'Myanmar Time based pre-match fixture search'
+    'Multi-League Prematch Fixture Search • Myanmar Time'
     '</div>',
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# API KEY SECTION
-# ============================================================
 
-with st.expander(
-    "🔐 API KEY",
-    expanded=False,
-):
+# =========================================================
+# SIDEBAR
+# =========================================================
 
-    secret_key = ""
+with st.sidebar:
 
-    try:
-        secret_key = st.secrets.get(
-            "API_FOOTBALL_KEY",
-            "",
-        )
-    except Exception:
-        pass
+    st.header("🔐 API SETTINGS")
 
     if secret_key:
+        st.success("API key loaded from Streamlit Secrets.")
 
-        st.success(
-            "API key ကို Streamlit Secrets ကနေ ရရှိထားပါတယ်။"
+        use_secret = st.checkbox(
+            "Use stored API key",
+            value=True,
         )
 
-        st.session_state.api_key = secret_key
+        if use_secret:
+            api_key = secret_key
+        else:
+            api_key = st.text_input(
+                "API-Football API Key",
+                type="password",
+            ).strip()
 
     else:
-
-        typed_key = st.text_input(
+        api_key = st.text_input(
             "API-Football API Key",
             type="password",
-            value=st.session_state.api_key,
-            placeholder="x-apisports-key",
+            placeholder="Paste your API key here",
+        ).strip()
+
+    st.divider()
+
+    st.caption(
+        "API-Football Free plan currently provides "
+        "100 requests/day."
+    )
+
+    st.caption(
+        "Do not publish your API key inside public GitHub code."
+    )
+
+
+# =========================================================
+# API HELPER
+# =========================================================
+
+def api_headers(key):
+    return {
+        "x-apisports-key": key,
+        "Accept": "application/json",
+    }
+
+
+def api_get(endpoint, params, key, timeout=20):
+
+    url = f"{API_BASE}{endpoint}"
+
+    response = requests.get(
+        url,
+        headers=api_headers(key),
+        params=params,
+        timeout=timeout,
+    )
+
+    # HTTP error
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"HTTP {response.status_code}: "
+            f"{response.text[:500]}"
         )
 
-        if typed_key:
-            st.session_state.api_key = typed_key.strip()
+    try:
+        data = response.json()
+    except Exception:
+        raise RuntimeError(
+            "API returned invalid JSON."
+        )
 
-        st.caption(
-            "API key ကို code ထဲ hard-code မလုပ်ထားပါ။"
+    # API errors
+    errors = data.get("errors")
+
+    if errors:
+
+        if isinstance(errors, dict):
+            error_text = " | ".join(
+                f"{k}: {v}"
+                for k, v in errors.items()
+            )
+        else:
+            error_text = str(errors)
+
+        raise RuntimeError(error_text)
+
+    return data
+
+
+# =========================================================
+# LEAGUE SEARCH
+# =========================================================
+
+@st.cache_data(ttl=600, show_spinner=False)
+def search_leagues_cached(search_text, key):
+
+    data = api_get(
+        "/leagues",
+        {
+            "search": search_text,
+        },
+        key,
+    )
+
+    return data.get("response", [])
+
+
+def search_leagues(search_text):
+
+    search_text = search_text.strip()
+
+    if len(search_text) < 3:
+        st.warning(
+            "League name အနည်းဆုံး 3 characters ရိုက်ပါ။ "
+            "ဥပမာ: Premier / Champions / LaLiga"
+        )
+        return
+
+    if not api_key:
+        st.error(
+            "API key မထည့်ရသေးပါ။ "
+            "ဘယ်ဘက် API SETTINGS မှာ API key ထည့်ပါ။"
+        )
+        return
+
+    try:
+
+        with st.spinner(
+            f"Searching leagues: {search_text}"
+        ):
+
+            results = search_leagues_cached(
+                search_text,
+                api_key,
+            )
+
+        cleaned = []
+
+        for item in results:
+
+            league = item.get("league", {})
+            country = item.get("country", {})
+
+            league_id = league.get("id")
+            league_name = league.get("name")
+            league_type = league.get("type")
+
+            if not league_id or not league_name:
+                continue
+
+            cleaned.append(
+                {
+                    "id": league_id,
+                    "name": league_name,
+                    "type": league_type or "",
+                    "country": country.get("name", "World"),
+                    "logo": league.get("logo", ""),
+                    "display": (
+                        f"{league_name} "
+                        f"— {country.get('name', 'World')} "
+                        f"(ID: {league_id})"
+                    ),
+                }
+            )
+
+        st.session_state.league_results = cleaned
+        st.session_state.last_search = search_text
+
+        if not cleaned:
+            st.warning(
+                f"'{search_text}' နဲ့ ကိုက်တဲ့ league မတွေ့ပါ။"
+            )
+
+    except Exception as e:
+
+        st.session_state.league_results = []
+
+        st.error(
+            f"League search error: {e}"
         )
 
 
-# ============================================================
-# STATUS BAR
-# ============================================================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-
-    st.markdown(
-        """
-        <div class="card">
-            <div class="card-title">⚙️ MODE</div>
-            <div>MULTI_LEAGUE_PREMATCH</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col2:
-
-    start_dt, end_dt = get_mmt_search_window()
-
-    st.markdown(
-        f"""
-        <div class="card">
-            <div class="card-title">🕛 MMT SEARCH WINDOW</div>
-            <div>
-                {start_dt.strftime("%Y-%m-%d %I:%M %p")}
-                →
-                {end_dt.strftime("%Y-%m-%d %I:%M %p")}
-                MMT
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with col3:
-
-    remaining = st.session_state.api_remaining
-
-    remaining_text = (
-        str(remaining)
-        if remaining is not None
-        else "Not reported"
-    )
-
-    st.markdown(
-        f"""
-        <div class="card">
-            <div class="card-title">🛡️ API SAFETY</div>
-            <div>Remaining: {remaining_text}</div>
-            <div>Timezone: Asia/Yangon</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# LEAGUE FILTER
-# ============================================================
+# =========================================================
+# LEAGUE SEARCH UI
+# =========================================================
 
 st.markdown(
-    "## 🏆 League Filter"
+    "## 🏆 Search League"
 )
 
-st.markdown(
-    """
-    <div class="subtitle">
-        Search league name → select league → select season → get matches
-    </div>
-    """,
-    unsafe_allow_html=True,
+st.caption(
+    "ကိုယ်ရှာချင်တဲ့ league နာမည်ကို ရိုက်ပြီး Search လုပ်ပါ။"
 )
-
-# ------------------------------------------------------------
-# Popular league quick selector
-# ------------------------------------------------------------
-
-st.markdown("### ⭐ Popular Leagues")
-
-popular_labels = [
-    league_label(x)
-    for x in POPULAR_LEAGUES
-]
-
-popular_choice = st.selectbox(
-    "Quick select",
-    ["— Select from popular leagues —"]
-    + popular_labels,
-    index=0,
-)
-
-if popular_choice != "— Select from popular leagues —":
-
-    selected_index = (
-        popular_labels.index(
-            popular_choice
-        )
-    )
-
-    st.session_state.selected_league = (
-        POPULAR_LEAGUES[selected_index]
-        .copy()
-    )
-
-
-# ------------------------------------------------------------
-# Search League
-# ------------------------------------------------------------
-
-st.markdown("### 🔎 Search League")
 
 search_col1, search_col2 = st.columns(
-    [4, 1]
+    [4, 1],
+    vertical_alignment="bottom",
 )
 
 with search_col1:
 
-    search_text = st.text_input(
-        "Search league",
-        value=st.session_state.last_search,
+    league_query = st.text_input(
+        "League name",
+        value="",
         placeholder=(
-            "Premier League / Bundesliga / "
-            "Champions League / Serie A..."
+            "ဥပမာ: Premier League, Champions League, "
+            "LaLiga, Bundesliga"
         ),
         label_visibility="collapsed",
     )
 
 with search_col2:
 
-    search_clicked = st.button(
-        "🔎 Search",
+    search_button = st.button(
+        "🔍 SEARCH",
         use_container_width=True,
+        type="primary",
     )
 
-if search_clicked:
 
-    if not st.session_state.api_key:
+if search_button:
 
-        st.error(
-            "API key ထည့်ပြီးမှ League Search လုပ်ပါ။"
-        )
-
-    elif len(search_text.strip()) < 3:
-
-        st.warning(
-            "League name အနည်းဆုံး 3 လုံး ရိုက်ပါ။"
-        )
-
-    else:
-
-        with st.spinner(
-            "League catalogue ရှာနေပါတယ်..."
-        ):
-
-            results, error = search_leagues(
-                search_text
-            )
-
-        if error:
-
-            st.session_state.league_results = []
-
-            st.error(error)
-
-        else:
-
-            st.session_state.league_results = results
-            st.session_state.last_search = (
-                search_text
-            )
-
-            if results:
-
-                st.success(
-                    f"{len(results)} leagues found."
-                )
-
-            else:
-
-                st.warning(
-                    "ဒီနာမည်နဲ့ League မတွေ့ပါ။"
-                )
+    search_leagues(league_query)
 
 
-# ------------------------------------------------------------
-# Search results selector
-# ------------------------------------------------------------
+# =========================================================
+# SEARCH RESULTS
+# =========================================================
 
 if st.session_state.league_results:
 
     st.markdown(
-        "### 📋 Search Results"
+        f"### 🔎 Search results for "
+        f"`{st.session_state.last_search}`"
     )
 
-    result_labels = [
-        league_label(x)
-        for x in st.session_state.league_results
+    # Remove duplicate IDs
+    unique_results = {}
+
+    for league in st.session_state.league_results:
+        unique_results[league["id"]] = league
+
+    unique_results = list(unique_results.values())
+
+    options = [
+        league["id"]
+        for league in unique_results
     ]
 
-    selected_result_label = st.selectbox(
-        "Choose league",
-        result_labels,
-        key="search_result_select",
-    )
+    option_labels = {
+        league["id"]: league["display"]
+        for league in unique_results
+    }
 
-    selected_result_index = (
-        result_labels.index(
-            selected_result_label
-        )
-    )
+    current_selected_ids = [
+        item["id"]
+        for item in st.session_state.selected_leagues
+    ]
 
-    st.session_state.selected_league = (
-        st.session_state.league_results[
-            selected_result_index
-        ]
-    )
+    valid_defaults = [
+        x
+        for x in current_selected_ids
+        if x in options
+    ]
 
-
-# ============================================================
-# SELECTED LEAGUE
-# ============================================================
-
-selected_league = st.session_state.selected_league
-
-if selected_league:
-
-    st.markdown(
-        "### ✅ Selected League"
-    )
-
-    st.markdown(
-        f"""
-        <div class="blue-card">
-
-            <div style="
-                font-size:24px;
-                font-weight:800;
-            ">
-                🏆 {selected_league["name"]}
-            </div>
-
-            <div style="
-                margin-top:8px;
-                color:#9aa4b2;
-            ">
-                Country: {selected_league.get("country", "-")}
-                <br>
-                League ID: {selected_league["id"]}
-            </div>
-
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # ========================================================
-    # SEASON
-    # ========================================================
-
-    st.markdown(
-        "### 📅 Season"
-    )
-
-    available_seasons = (
-        selected_league.get(
-            "seasons",
-            []
-        )
-    )
-
-    # If search result contains seasons
-    if available_seasons:
-
-        # Put current year first if available
-        default_season = guess_current_season()
-
-        season_options = available_seasons.copy()
-
-        if default_season in season_options:
-
-            default_index = season_options.index(
-                default_season
-            )
-
-        else:
-
-            default_index = 0
-
-    else:
-
-        # Popular local league doesn't have
-        # season metadata.
-        #
-        # We still allow manual season selection.
-        season_options = list(
-            range(
-                guess_current_season(),
-                2019,
-                -1,
-            )
-        )
-
-        default_index = 0
-
-    season = st.selectbox(
-        "API season",
-        season_options,
-        index=default_index,
-        format_func=lambda x: (
-            f"{x}/{str(x + 1)[-2:]}"
+    selected_ids = st.multiselect(
+        "Select leagues",
+        options=options,
+        default=valid_defaults,
+        format_func=lambda x: option_labels.get(
+            x,
+            str(x),
         ),
+        key="league_selector",
+        placeholder="Choose one or more leagues...",
     )
 
-    st.caption(
-        "ဥပမာ 2025 ဆိုရင် 2025/26 season ကို ဆိုလိုပါတယ်။"
+    # Update selected leagues
+    selected_objects = [
+        league
+        for league in unique_results
+        if league["id"] in selected_ids
+    ]
+
+    # Preserve previously selected leagues from other searches
+    old_objects = {
+        item["id"]: item
+        for item in st.session_state.selected_leagues
+    }
+
+    for item in selected_objects:
+        old_objects[item["id"]] = item
+
+    # Only keep IDs currently selected in widget OR
+    # previously selected leagues that were not part of
+    # the current search results.
+    current_result_ids = set(options)
+
+    final_selected = []
+
+    for item in st.session_state.selected_leagues:
+
+        if (
+            item["id"] not in current_result_ids
+            and item["id"] not in selected_ids
+        ):
+            final_selected.append(item)
+
+    final_selected.extend(selected_objects)
+
+    # Remove duplicates
+    final_map = {
+        item["id"]: item
+        for item in final_selected
+    }
+
+    st.session_state.selected_leagues = list(
+        final_map.values()
     )
 
-    # ========================================================
-    # FREE PLAN NOTICE
-    # ========================================================
 
-    if season >= 2025:
+# =========================================================
+# SELECTED LEAGUES
+# =========================================================
 
-        st.warning(
-            "⚠️ သင့် screenshot အရ Free plan ဖြစ်နေပါတယ်။ "
-            "Free plan က season access ကို ကန့်သတ်ထားနိုင်ပါတယ်။ "
-            "2025/26 သို့မဟုတ် 2026/27 ကို API က ပယ်ချရင် "
-            "code ပြဿနာမဟုတ်ဘဲ plan restriction ဖြစ်ပါတယ်။"
-        )
+st.markdown(
+    "## ✅ Selected Leagues"
+)
 
-    # ========================================================
-    # SEARCH WINDOW
-    # ========================================================
+selected = st.session_state.selected_leagues
 
-    st.markdown(
-        "### 🕛 Myanmar Time Search Window"
-    )
-
-    start_dt, end_dt = (
-        get_mmt_search_window()
-    )
+if selected:
 
     st.markdown(
         f"""
-        <div class="success-card">
-
-            <b>START</b><br>
-            {start_dt.strftime("%Y-%m-%d %I:%M %p")}
-            MMT
-
-            <br><br>
-
-            <b>END</b><br>
-            {end_dt.strftime("%Y-%m-%d %I:%M %p")}
-            MMT
-
-            <br><br>
-
-            <b>Timezone</b><br>
-            Asia/Yangon
-
+        <div class="info-card">
+            <div style="font-size:24px;font-weight:700;">
+                Selected leagues: {len(selected)}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ========================================================
-    # GET MATCHES BUTTON
-    # ========================================================
+    for league in selected:
 
-    get_matches_clicked = st.button(
-        "⚽ GET MATCHES",
-        type="primary",
-        use_container_width=True,
-    )
+        c1, c2 = st.columns(
+            [5, 1],
+            vertical_alignment="center",
+        )
 
-    if get_matches_clicked:
+        with c1:
 
-        if not st.session_state.api_key:
-
-            st.error(
-                "API key မရှိပါ။"
+            st.markdown(
+                f"""
+                <div class="league-item">
+                    <div class="league-name">
+                        🏆 {league['name']}
+                    </div>
+                    <div class="league-meta">
+                        Country: {league['country']}
+                        &nbsp; • &nbsp;
+                        League ID: {league['id']}
+                        &nbsp; • &nbsp;
+                        Type: {league['type']}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-        else:
+        with c2:
 
-            with st.spinner(
-                "Myanmar Time 12 PM → နောက်နေ့ 12 PM "
-                "အတွင်းက matches ရှာနေပါတယ်..."
+            if st.button(
+                "✕ Remove",
+                key=f"remove_{league['id']}",
+                use_container_width=True,
             ):
 
-                matches, error = (
-                    get_fixtures_for_window(
-                        league_id=selected_league["id"],
-                        season=season,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
+                st.session_state.selected_leagues = [
+                    x
+                    for x in st.session_state.selected_leagues
+                    if x["id"] != league["id"]
+                ]
+
+                st.rerun()
+
+    if st.button(
+        "🗑️ Clear Selected Leagues",
+        use_container_width=True,
+    ):
+
+        st.session_state.selected_leagues = []
+        st.session_state.matches = []
+        st.rerun()
+
+else:
+
+    st.markdown(
+        """
+        <div class="card">
+            No league selected yet.
+            <br><br>
+            Search a league above and select it.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================================================
+# SEARCH WINDOW
+# =========================================================
+
+st.markdown(
+    "## 🕐 Search Window"
+)
+
+now_mmt = datetime.now(MMT)
+
+today_mmt = now_mmt.date()
+
+start_mmt = datetime.combine(
+    today_mmt,
+    time(12, 0),
+    tzinfo=MMT,
+)
+
+# If current MMT time is before 12:00 PM,
+# use today's 12 PM -> tomorrow 12 PM.
+#
+# If current MMT time is already after 12 PM,
+# use today's 12 PM -> tomorrow 12 PM as requested.
+end_mmt = start_mmt + timedelta(days=1)
+
+st.markdown(
+    f"""
+    <div class="info-card">
+
+        <div style="font-size:16px;color:#9aa4b2;">
+            🇲🇲 Myanmar Standard Time (MMT)
+        </div>
+
+        <div style="font-size:25px;font-weight:700;margin-top:8px;">
+            {start_mmt.strftime('%Y-%m-%d %I:%M %p')}
+            →
+            {end_mmt.strftime('%Y-%m-%d %I:%M %p')}
+        </div>
+
+        <div style="color:#9aa4b2;margin-top:8px;">
+            Fixed search window:
+            Today 12:00 PM → Tomorrow 12:00 PM
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# =========================================================
+# API STATUS
+# =========================================================
+
+st.markdown(
+    "## 🛡️ API Status"
+)
+
+if api_key:
+
+    st.markdown(
+        """
+        <div class="success-card">
+            🟢 API key is ready.
+            <br>
+            Fixture search can be started.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+else:
+
+    st.markdown(
+        """
+        <div class="warning-card">
+            ⚠️ API key မထည့်ရသေးပါ။
+            <br>
+            Sidebar → API SETTINGS မှာ API key ထည့်ပါ။
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================================================
+# FIXTURE SEARCH
+# =========================================================
+
+@st.cache_data(ttl=120, show_spinner=False)
+def get_fixtures_by_date_cached(
+    from_date,
+    to_date,
+    timezone_name,
+    key,
+):
+
+    data = api_get(
+        "/fixtures",
+        {
+            "from": from_date,
+            "to": to_date,
+            "timezone": timezone_name,
+        },
+        key,
+        timeout=30,
+    )
+
+    return data.get("response", [])
+
+
+def get_matches():
+
+    if not api_key:
+
+        st.error(
+            "API key မထည့်ရသေးပါ။"
+        )
+
+        return
+
+    if not selected:
+
+        st.warning(
+            "အနည်းဆုံး league တစ်ခုရွေးပါ။"
+        )
+
+        return
+
+    from_date = start_mmt.strftime(
+        "%Y-%m-%d"
+    )
+
+    to_date = end_mmt.strftime(
+        "%Y-%m-%d"
+    )
+
+    try:
+
+        with st.spinner(
+            "⚽ Getting matches..."
+        ):
+
+            all_fixtures = get_fixtures_by_date_cached(
+                from_date,
+                to_date,
+                "Asia/Yangon",
+                api_key,
+            )
+
+        selected_ids = {
+            int(x["id"])
+            for x in selected
+        }
+
+        filtered = []
+
+        for fixture in all_fixtures:
+
+            league = fixture.get(
+                "league",
+                {},
+            )
+
+            league_id = league.get("id")
+
+            if league_id not in selected_ids:
+                continue
+
+            fixture_info = fixture.get(
+                "fixture",
+                {},
+            )
+
+            teams = fixture.get(
+                "teams",
+                {},
+            )
+
+            goals = fixture.get(
+                "goals",
+                {},
+            )
+
+            date_string = fixture_info.get(
+                "date"
+            )
+
+            if not date_string:
+                continue
+
+            try:
+
+                utc_dt = datetime.fromisoformat(
+                    date_string.replace(
+                        "Z",
+                        "+00:00",
                     )
                 )
 
-            if error:
+                local_dt = utc_dt.astimezone(
+                    MMT
+                )
 
-                st.session_state.matches = []
+            except Exception:
 
-                error_text = str(error)
+                local_dt = None
 
-                # --------------------------------------------
-                # Season restriction
-                # --------------------------------------------
+            filtered.append(
+                {
+                    "fixture_id": fixture_info.get(
+                        "id"
+                    ),
+                    "league_id": league_id,
+                    "league_name": league.get(
+                        "name",
+                        "Unknown",
+                    ),
+                    "country": league.get(
+                        "country",
+                        "World",
+                    ),
+                    "round": league.get(
+                        "round",
+                        "",
+                    ),
+                    "home": teams.get(
+                        "home",
+                        {}
+                    ).get(
+                        "name",
+                        "Home",
+                    ),
+                    "away": teams.get(
+                        "away",
+                        {}
+                    ).get(
+                        "name",
+                        "Away",
+                    ),
+                    "home_logo": teams.get(
+                        "home",
+                        {}
+                    ).get(
+                        "logo",
+                        "",
+                    ),
+                    "away_logo": teams.get(
+                        "away",
+                        {}
+                    ).get(
+                        "logo",
+                        "",
+                    ),
+                    "status": fixture_info.get(
+                        "status",
+                        {}
+                    ).get(
+                        "long",
+                        "",
+                    ),
+                    "short_status": fixture_info.get(
+                        "status",
+                        {}
+                    ).get(
+                        "short",
+                        "",
+                    ),
+                    "local_datetime": local_dt,
+                    "home_goals": goals.get(
+                        "home"
+                    ),
+                    "away_goals": goals.get(
+                        "away"
+                    ),
+                }
+            )
 
-                if (
-                    "Free plans" in error_text
-                    or "season" in error_text.lower()
-                ):
+        # Sort by Myanmar time
+        filtered.sort(
+            key=lambda x: (
+                x["local_datetime"]
+                if x["local_datetime"]
+                else datetime.max.replace(
+                    tzinfo=MMT
+                )
+            )
+        )
 
-                    st.markdown(
-                        f"""
-                        <div class="error-card">
+        # Final exact 12PM -> 12PM filter
+        exact_matches = []
 
-                            <h3>
-                                ❌ API Season Access Error
-                            </h3>
+        for match in filtered:
 
-                            <p>
-                                {error_text}
-                            </p>
+            dt = match["local_datetime"]
 
-                            <p>
-                                ဒီဟာက Streamlit / League Filter
-                                error မဟုတ်ပါ။
-                            </p>
+            if not dt:
+                continue
 
-                            <p>
-                                API Free plan က ဒီ season ကို
-                                access မပေးတာ ဖြစ်ပါတယ်။
-                            </p>
+            if start_mmt <= dt <= end_mmt:
+                exact_matches.append(match)
 
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+        st.session_state.matches = exact_matches
 
-                else:
+        st.session_state.last_match_search = {
+            "from": start_mmt,
+            "to": end_mmt,
+            "count": len(exact_matches),
+        }
 
-                    st.error(
-                        error_text
-                    )
+    except Exception as e:
 
-            else:
+        st.session_state.matches = []
 
-                st.session_state.matches = matches
-
-                if matches:
-
-                    st.success(
-                        f"{len(matches)} matches found."
-                    )
-
-                else:
-
-                    st.info(
-                        "ဒီ 12 PM MMT → နောက်နေ့ 12 PM MMT "
-                        "window အတွင်းမှာ match မတွေ့ပါ။"
-                    )
+        st.error(
+            f"Fixture API error: {e}"
+        )
 
 
-# ============================================================
+# =========================================================
+# GET MATCHES BUTTON
+# =========================================================
+
+st.markdown(
+    "## ⚽ Get Matches"
+)
+
+if st.button(
+    "⚽ GET MATCHES",
+    use_container_width=True,
+    type="primary",
+):
+
+    get_matches()
+
+
+# =========================================================
 # MATCH RESULTS
-# ============================================================
+# =========================================================
+
+if st.session_state.last_match_search:
+
+    info = st.session_state.last_match_search
+
+    st.markdown(
+        f"""
+        <div class="info-card">
+
+            <div style="font-size:16px;color:#9aa4b2;">
+                SEARCH WINDOW
+            </div>
+
+            <div style="font-size:22px;font-weight:700;">
+                {info['from'].strftime('%Y-%m-%d %I:%M %p')}
+                →
+                {info['to'].strftime('%Y-%m-%d %I:%M %p')}
+                MMT
+            </div>
+
+            <div style="margin-top:8px;">
+                Matches found:
+                <b>{info['count']}</b>
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================================================
+# DISPLAY MATCHES
+# =========================================================
 
 matches = st.session_state.matches
 
 if matches:
 
     st.markdown(
-        "## ⚽ Match Results"
+        f"## 📋 Matches — {len(matches)}"
     )
 
+    for match in matches:
+
+        local_dt = match["local_datetime"]
+
+        if local_dt:
+
+            date_text = local_dt.strftime(
+                "%Y-%m-%d"
+            )
+
+            time_text = local_dt.strftime(
+                "%I:%M %p"
+            )
+
+        else:
+
+            date_text = "-"
+            time_text = "-"
+
+        status = match["status"]
+
+        if match["short_status"] in [
+            "NS",
+            "TBD",
+        ]:
+
+            status_text = "🕐 Not Started"
+
+        else:
+
+            status_text = status or "Unknown"
+
+        st.markdown(
+            f"""
+            <div class="match-card">
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    gap:10px;
+                    flex-wrap:wrap;
+                ">
+
+                    <div>
+                        <div class="league-name">
+                            🏆 {match['league_name']}
+                        </div>
+
+                        <div class="small">
+                            {match['country']}
+                            &nbsp; • &nbsp;
+                            League ID: {match['league_id']}
+                        </div>
+                    </div>
+
+                    <div class="small">
+                        {date_text}
+                    </div>
+
+                </div>
+
+                <hr style="
+                    border:0;
+                    border-top:1px solid #303846;
+                    margin:15px 0;
+                ">
+
+                <div style="
+                    display:grid;
+                    grid-template-columns:
+                    1fr 120px 1fr;
+                    gap:10px;
+                    align-items:center;
+                ">
+
+                    <div class="team-name">
+                        {match['home']}
+                    </div>
+
+                    <div style="
+                        text-align:center;
+                    ">
+
+                        <div class="match-time">
+                            {time_text}
+                        </div>
+
+                        <div class="small">
+                            MMT
+                        </div>
+
+                    </div>
+
+                    <div class="team-name"
+                         style="text-align:right;">
+                        {match['away']}
+                    </div>
+
+                </div>
+
+                <div class="small"
+                     style="margin-top:14px;">
+                    Status: {status_text}
+                    &nbsp; • &nbsp;
+                    Fixture ID: {match['fixture_id']}
+                </div>
+
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+elif st.session_state.last_match_search:
+
     st.markdown(
-        f"""
-        <div class="blue-card">
-            <b>SEARCH WINDOW</b><br>
-            {start_dt.strftime("%Y-%m-%d %I:%M %p")}
-            →
-            {end_dt.strftime("%Y-%m-%d %I:%M %p")}
-            MMT
-
-            <br><br>
-
-            <b>TOTAL MATCHES</b><br>
-            {len(matches)}
+        """
+        <div class="warning-card">
+            ⚠️ Selected leagues ထဲမှာ
+            သတ်မှတ်ထားတဲ့ Myanmar Time
+            12:00 PM → နောက်နေ့ 12:00 PM
+            အတွင်း match မတွေ့ပါ။
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    for match in matches:
 
-        render_match(match)
+# =========================================================
+# DEBUG / API INFORMATION
+# =========================================================
 
+with st.expander("🔧 Debug / API Information"):
 
-# ============================================================
-# DATA TABLE
-# ============================================================
-
-if matches:
-
-    st.markdown(
-        "## 📊 Match Table"
+    st.write(
+        "Current MMT:",
+        now_mmt.strftime(
+            "%Y-%m-%d %I:%M:%S %p"
+        ),
     )
 
-    table_rows = []
-
-    for match in matches:
-
-        fixture = match.get(
-            "fixture",
-            {}
-        )
-
-        league = match.get(
-            "league",
-            {}
-        )
-
-        teams = match.get(
-            "teams",
-            {}
-        )
-
-        goals = match.get(
-            "goals",
-            {}
-        )
-
-        dt_mmt = match.get(
-            "_mmt_datetime"
-        )
-
-        table_rows.append(
-            {
-                "Fixture ID": fixture.get(
-                    "id"
-                ),
-                "Date MMT": (
-                    dt_mmt.strftime(
-                        "%Y-%m-%d"
-                    )
-                    if dt_mmt
-                    else ""
-                ),
-                "Time MMT": (
-                    dt_mmt.strftime(
-                        "%I:%M %p"
-                    )
-                    if dt_mmt
-                    else ""
-                ),
-                "League": league.get(
-                    "name",
-                    "",
-                ),
-                "Home": teams.get(
-                    "home",
-                    {}
-                ).get(
-                    "name",
-                    "",
-                ),
-                "Away": teams.get(
-                    "away",
-                    {}
-                ).get(
-                    "name",
-                    "",
-                ),
-                "Home Goals": goals.get(
-                    "home"
-                ),
-                "Away Goals": goals.get(
-                    "away"
-                ),
-                "Status": get_status_text(
-                    match
-                ),
-            }
-        )
-
-    df = pd.DataFrame(
-        table_rows
+    st.write(
+        "Search start MMT:",
+        start_mmt.isoformat(),
     )
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
+    st.write(
+        "Search end MMT:",
+        end_mmt.isoformat(),
+    )
+
+    st.write(
+        "Selected league IDs:",
+        [
+            x["id"]
+            for x in selected
+        ],
+    )
+
+    st.write(
+        "League search result count:",
+        len(
+            st.session_state.league_results
+        ),
+    )
+
+    st.write(
+        "Match result count:",
+        len(matches),
     )
 
 
-# ============================================================
-# FOOTER / HELP
-# ============================================================
+# =========================================================
+# FOOTER
+# =========================================================
 
-st.markdown("---")
-
-with st.expander(
-    "ℹ️ ဒီ App ဘယ်လိုအလုပ်လုပ်သလဲ?"
-):
-
-    st.markdown(
-        """
-### 1. League Search
-
-`Premier League`, `Bundesliga`,
-`Champions League`, `Serie A` စသဖြင့်
-**3 characters အထက်** ရိုက်ပြီး Search နှိပ်ပါ။
-
-API က League ID ကိုရှာပေးပါမယ်။
-
----
-
-### 2. League ID ကို Manual ရှာစရာ မလိုပါ
-
-ဥပမာ:
-
-`Premier League`
-
-→ API Search
-
-→ `Premier League — England (ID 39)`
-
-→ ရွေး
-
-ဒီလိုဖြစ်ပါတယ်။
-
----
-
-### 3. Season
-
-League ID နဲ့ Season ကို သီးခြားအသုံးပြုပါတယ်။
-
-ဥပမာ:
-
-`Premier League`
-
-League ID = `39`
-
-`2025`
-
-ဆိုရင်
-
-`2025/26`
-
-season ဖြစ်ပါတယ်။
-
----
-
-### 4. Myanmar Time
-
-App က
-
-**ဒီနေ့ 12:00 PM MMT**
-
-မှ
-
-**နောက်နေ့ 12:00 PM MMT**
-
-အထိကို exact window အဖြစ်သတ်မှတ်ပါတယ်။
-
----
-
-### 5. API Timezone
-
-API request ထဲမှာ
-
-`timezone=Asia/Yangon`
-
-ကို အသုံးပြုထားပါတယ်။
-
-ဒါကြောင့် match kickoff ကို
-Myanmar Standard Time အဖြစ် ရယူပြီး
-နောက်ဆုံးမှာ code က exact window ထပ်စစ်ပါတယ်။
-
----
-
-### 6. Free Plan
-
-API-Football Free plan မှာ
-daily request limit ရှိပြီး
-season access လည်း ကန့်သတ်ထားနိုင်ပါတယ်။
-
-ဒါကြောင့် API က
-
-`Free plans do not have access to this season`
-
-လို့ ပြန်လာရင်
-League Filter ကို ထပ်မပြင်ပါနဲ့။
-
-အဲဒါက API plan restriction ဖြစ်ပါတယ်။
-        """
-    )
+st.divider()
 
 st.caption(
-    "Football Match Finder • Asia/Yangon • API-Football"
+    "Football Match Analyzer • "
+    "API-Football • Myanmar Standard Time (Asia/Yangon)"
 )
