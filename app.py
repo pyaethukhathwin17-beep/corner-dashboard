@@ -1,5 +1,6 @@
 import json
 import os
+import textwrap
 import streamlit as st
 
 
@@ -27,95 +28,199 @@ st.markdown(
     color: #e6edf3;
 }
 
+/* ============================================================
+   HEADER
+   ============================================================ */
+
 .header-card {
     background: linear-gradient(
         135deg,
         #161b22 0%,
         #21262d 100%
     );
+
     border: 1px solid #30363d;
     border-radius: 12px;
+
     padding: 16px;
     margin-bottom: 16px;
 }
 
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
 .badge-over {
     background-color: #00e676;
     color: #042410;
+
     padding: 6px 14px;
     border-radius: 6px;
+
     font-weight: 800;
+    display: inline-block;
 }
 
 .badge-under {
     background-color: #ff1744;
     color: #ffffff;
+
     padding: 6px 14px;
     border-radius: 6px;
+
     font-weight: 800;
+    display: inline-block;
 }
 
 .badge-neutral {
     background-color: #30363d;
     color: #8b949e;
+
     padding: 6px 14px;
     border-radius: 6px;
+
     font-weight: 800;
+    display: inline-block;
 }
 
 .badge-unavailable {
     background-color: #5a2028;
     color: #ff7b72;
+
     padding: 6px 14px;
     border-radius: 6px;
+
     font-weight: 800;
+    display: inline-block;
 }
+
+
+/* ============================================================
+   STAT BOX
+   ============================================================ */
 
 .stat-box {
     background-color: #161b22;
+
     border: 1px solid #30363d;
     border-radius: 8px;
+
     padding: 10px;
+
     text-align: center;
 }
 
+.stat-box-unavailable {
+    background-color: #161b22;
+
+    border: 1px solid #5a2028;
+    border-radius: 8px;
+
+    padding: 10px;
+
+    text-align: center;
+}
+
+
+/* ============================================================
+   SCORE BOX
+   ============================================================ */
+
 .score-box {
     background-color: #0d1117;
+
     border: 1px solid #30363d;
     border-radius: 8px;
+
     padding: 8px 12px;
     margin-bottom: 6px;
 }
+
+
+/* ============================================================
+   TEXT
+   ============================================================ */
 
 .small-note {
     color: #8b949e;
     font-size: 12px;
 }
 
+
+/* ============================================================
+   WARNING
+   ============================================================ */
+
 .data-warning {
     background-color: #2d1b1e;
+
     border: 1px solid #5a2028;
+
     color: #ff7b72;
+
     border-radius: 8px;
+
     padding: 12px;
+
     margin: 8px 0;
 }
+
+
+/* ============================================================
+   SUCCESS
+   ============================================================ */
 
 .data-success {
     background-color: #12251a;
+
     border: 1px solid #238636;
+
     color: #56d364;
+
     border-radius: 8px;
+
     padding: 12px;
+
     margin: 8px 0;
 }
 
-.model-box {
+
+/* ============================================================
+   MODEL CARD
+   ============================================================ */
+
+.model-card {
     background-color: #161b22;
+
     border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 12px;
+
+    border-radius: 10px;
+
+    padding: 14px;
+
     margin-top: 8px;
+}
+
+
+/* ============================================================
+   DATA SOURCE NOTE
+   ============================================================ */
+
+.proxy-note {
+    background-color: #211f12;
+
+    border: 1px solid #6e5c20;
+
+    color: #d8c56a;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+    margin-top: 8px;
+
+    font-size: 13px;
 }
 
 </style>
@@ -125,13 +230,29 @@ st.markdown(
 
 
 # ============================================================
-# 3. HEADER
+# 3. HTML HELPER
+# ============================================================
+
+def render_html(html):
+    """
+    HTML indentation ကို ဖြုတ်ပြီး Streamlit မှာ
+    raw HTML code မပြဘဲ HTML အဖြစ် render လုပ်ရန်။
+    """
+
+    st.markdown(
+        textwrap.dedent(html).strip(),
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# 4. HEADER
 # ============================================================
 
 st.markdown(
     """
 ## ⚽ MATCHES FEED
-<span style='color:#58a6ff; font-size:14px;'>
+<span style="color:#58a6ff; font-size:14px;">
 Pre-Match Intelligence Pro
 </span>
 """,
@@ -140,21 +261,22 @@ Pre-Match Intelligence Pro
 
 
 # ============================================================
-# 4. CHECK JSON
+# 5. CHECK JSON FILE
 # ============================================================
 
 if not os.path.exists("matches_data.json"):
 
     st.error(
-        "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။ "
-        "GitHub Actions မှ Fetch Workflow ကို run ပေးပါ။"
+        "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။\n\n"
+        "ကျေးဇူးပြု၍ GitHub Actions Workflow ကို "
+        "အရင် run ပေးပါ။"
     )
 
     st.stop()
 
 
 # ============================================================
-# 5. LOAD JSON
+# 6. LOAD JSON
 # ============================================================
 
 try:
@@ -162,7 +284,7 @@ try:
     with open(
         "matches_data.json",
         "r",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as f:
 
         data = json.load(f)
@@ -170,7 +292,7 @@ try:
 except json.JSONDecodeError as e:
 
     st.error(
-        f"❌ `matches_data.json` JSON format မှားနေပါတယ်။\n\n{e}"
+        f"❌ `matches_data.json` ဖိုင်ကို ဖတ်မရပါ။\n\n{e}"
     )
 
     st.stop()
@@ -185,69 +307,144 @@ except Exception as e:
 
 
 # ============================================================
-# 6. GET MATCH DATA
+# 7. GET DATA
 # ============================================================
 
 matches = data.get(
     "matches",
-    []
+    [],
 )
 
 updated_date = data.get(
     "updated_at",
     data.get(
         "window_range",
-        "N/A"
-    )
+        "N/A",
+    ),
+)
+
+total_matches = len(matches)
+
+mode = data.get(
+    "mode",
+    "UNKNOWN",
+)
+
+league_filter = data.get(
+    "league_filter",
+    "N/A",
+)
+
+history_season = data.get(
+    "history_season",
+    "N/A",
+)
+
+api_calls = data.get(
+    "api_calls_this_run",
+    "N/A",
+)
+
+remaining_quota = data.get(
+    "remaining_quota",
+    "N/A",
 )
 
 
 # ============================================================
-# 7. HEADER CARD
+# 8. HEADER CARD
 # ============================================================
 
-st.markdown(
+render_html(
     f"""
-<div class="header-card"
-     style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-     ">
+    <div class="header-card">
 
-    <div>
-
-        <span class="small-note">
-            ACTIVE MATCHES DATE
-        </span>
-
-        <h4 style="
-            margin:0;
-            color:#00e676;
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:15px;
+            flex-wrap:wrap;
         ">
-            📅 {updated_date}
-        </h4>
+
+            <div>
+
+                <span class="small-note">
+                    ACTIVE MATCHES WINDOW
+                </span>
+
+                <h4 style="
+                    margin:0;
+                    color:#00e676;
+                ">
+                    📅 {updated_date}
+                </h4>
+
+            </div>
+
+            <span style="
+                background-color:#21262d;
+                color:#58a6ff;
+                padding:6px 12px;
+                border-radius:6px;
+                font-weight:bold;
+            ">
+                Total Matches: {total_matches}
+            </span>
+
+        </div>
 
     </div>
-
-    <span style="
-        background-color:#21262d;
-        color:#58a6ff;
-        padding:6px 12px;
-        border-radius:6px;
-        font-weight:bold;
-    ">
-        Total Matches: {len(matches)}
-    </span>
-
-</div>
-""",
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-# 8. EMPTY DATA
+# 9. SYSTEM INFORMATION
+# ============================================================
+
+with st.expander(
+    "⚙️ System Information",
+    expanded=False,
+):
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+
+        st.metric(
+            "Mode",
+            mode,
+        )
+
+    with c2:
+
+        st.metric(
+            "League Filter",
+            league_filter,
+        )
+
+    with c3:
+
+        st.metric(
+            "API Calls",
+            api_calls,
+        )
+
+    with c4:
+
+        st.metric(
+            "Remaining Quota",
+            remaining_quota,
+        )
+
+    st.caption(
+        f"History Season: {history_season}"
+    )
+
+
+# ============================================================
+# 10. EMPTY MATCH CHECK
 # ============================================================
 
 if not matches:
@@ -256,11 +453,16 @@ if not matches:
         "⚠️ လက်ရှိမှာ ပြသရန် match data မရှိသေးပါ။"
     )
 
+    st.info(
+        "GitHub Actions က `matches_data.json` ထဲမှာ "
+        "match မထည့်ပေးထားတာဖြစ်နိုင်ပါတယ်။"
+    )
+
     st.stop()
 
 
 # ============================================================
-# 9. HELPER FUNCTIONS
+# 11. HELPER FUNCTIONS
 # ============================================================
 
 def safe_pct(value):
@@ -269,9 +471,13 @@ def safe_pct(value):
         return "N/A"
 
     try:
+
         return f"{float(value):.0f}%"
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
 
         return "N/A"
 
@@ -282,9 +488,13 @@ def safe_number(value):
         return "N/A"
 
     try:
+
         return f"{float(value):.2f}"
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
 
         return "N/A"
 
@@ -295,9 +505,13 @@ def safe_probability(value):
         return "N/A"
 
     try:
+
         return f"{float(value):.1f}%"
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
 
         return "N/A"
 
@@ -308,89 +522,57 @@ def safe_edge(value):
         return "N/A"
 
     try:
+
         return f"{float(value):+.1f}%"
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
 
         return "N/A"
 
 
-# ============================================================
-# 10. IMPORTANT DATA AVAILABILITY CHECK
-# ============================================================
+def get_reason(stats):
 
-def stats_available(stats):
+    if not isinstance(
+        stats,
+        dict,
+    ):
 
-    """
-    IMPORTANT:
+        return "UNKNOWN"
 
-    Fetcher version တချို့မှာ `available` field မပါနိုင်ပါတယ်။
+    status = stats.get(
+        "status"
+    )
 
-    ဒါကြောင့် available=True ဖြစ်မှ data ရှိတယ်လို့
-    မသတ်မှတ်တော့ပါဘူး။
+    if status:
+        return str(status)
 
-    Actual statistical fields ရှိမရှိကို စစ်ပါမယ်။
-    """
+    reason = stats.get(
+        "reason"
+    )
 
-    if not isinstance(stats, dict):
-        return False
+    if reason:
+        return str(reason)
 
-    # Explicit unavailable states
-    reason = str(
-        stats.get(
-            "reason",
-            ""
-        )
-    ).upper()
+    return "UNKNOWN"
 
-    status = str(
-        stats.get(
-            "status",
-            ""
-        )
-    ).upper()
 
-    if reason in [
-        "API_ERROR",
-        "API_DATA_UNAVAILABLE",
-        "INSUFFICIENT_L5_DATA",
-        "DATA_UNAVAILABLE",
-        "UNKNOWN",
-    ]:
-        return False
+def get_model_status(match):
 
-    if status in [
-        "API_ERROR",
-        "API_DATA_UNAVAILABLE",
-        "INSUFFICIENT_L5_DATA",
-        "DATA_UNAVAILABLE",
-    ]:
-        return False
+    status = match.get(
+        "model_status"
+    )
 
-    # New fetcher may provide explicit available=True
-    if stats.get("available") is True:
-        return True
+    if status:
+        return status
 
-    # Actual L5 statistics are enough
-    required_fields = [
-        "over_pct",
-        "btts_pct",
-        "gf_avg",
-        "ga_avg",
-    ]
-
-    found = 0
-
-    for field in required_fields:
-
-        if stats.get(field) is not None:
-            found += 1
-
-    return found >= 3
+    return "UNKNOWN"
 
 
 # ============================================================
-# 11. MATCH LOOP
+# 12. MATCH LOOP
 # ============================================================
 
 for m in matches:
@@ -401,47 +583,51 @@ for m in matches:
 
     h_name = m.get(
         "home",
-        "Unknown Home"
+        "Unknown Home",
     )
 
     a_name = m.get(
         "away",
-        "Unknown Away"
+        "Unknown Away",
     )
 
     l_name = m.get(
         "league",
-        "Unknown League"
+        "Unknown League",
     )
 
     country = m.get(
         "country",
-        ""
+        "",
     )
 
     sig = m.get(
         "signal",
-        "NEUTRAL"
+        "NEUTRAL",
     )
 
     prob = m.get(
         "prob",
-        None
+        None,
     )
 
     edge = m.get(
         "edge",
-        None
+        None,
     )
 
     hs = m.get(
         "h_stats",
-        {}
+        {},
     )
 
     as_ = m.get(
         "a_stats",
-        {}
+        {},
+    )
+
+    model_status = get_model_status(
+        m
     )
 
 
@@ -449,12 +635,20 @@ for m in matches:
     # DATA AVAILABILITY
     # --------------------------------------------------------
 
-    home_available = stats_available(
-        hs
+    home_available = (
+        isinstance(hs, dict)
+        and hs.get(
+            "sample_size",
+            0,
+        ) >= 5
     )
 
-    away_available = stats_available(
-        as_
+    away_available = (
+        isinstance(as_, dict)
+        and as_.get(
+            "sample_size",
+            0,
+        ) >= 5
     )
 
     data_available = (
@@ -480,11 +674,10 @@ for m in matches:
         expanded=(
             sig in [
                 "OVER_2_5",
-                "UNDER_2_5"
+                "UNDER_2_5",
             ]
-        )
+        ),
     ):
-
 
         # ====================================================
         # MATCH HEADER
@@ -496,7 +689,7 @@ for m in matches:
 
 
         # ----------------------------------------------------
-        # MATCH NAME
+        # LEFT
         # ----------------------------------------------------
 
         with c1:
@@ -513,149 +706,158 @@ for m in matches:
 
 
         # ----------------------------------------------------
-        # SIGNAL
+        # RIGHT
         # ----------------------------------------------------
 
         with c2:
 
             if sig == "OVER_2_5":
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='badge-over'>
-                    ⭐⭐⭐⭐⭐ OVER 2.5 TARGET
+                    <div class="badge-over">
+                        ⭐⭐⭐⭐⭐ OVER 2.5 TARGET
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
             elif sig == "UNDER_2_5":
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='badge-under'>
-                    ⭐⭐⭐⭐⭐ UNDER 2.5 TARGET
+                    <div class="badge-under">
+                        ⭐⭐⭐⭐⭐ UNDER 2.5 TARGET
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
             elif sig == "DATA_UNAVAILABLE":
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='badge-unavailable'>
-                    ⚠️ DATA UNAVAILABLE
+                    <div class="badge-unavailable">
+                        ⚠️ DATA UNAVAILABLE
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
             else:
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='badge-neutral'>
-                    ⚪ NEUTRAL
+                    <div class="badge-neutral">
+                        ⚪ NEUTRAL
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
 
-            # =================================================
-            # PROBABILITY / EDGE
-            # =================================================
+            prob_display = safe_probability(
+                prob
+            )
+
+            edge_display = safe_edge(
+                edge
+            )
 
             st.write(
                 f"**Probability:** "
-                f"{safe_probability(prob)}"
+                f"{prob_display}"
                 f" | "
                 f"**Edge:** "
-                f"{safe_edge(edge)}"
+                f"{edge_display}"
                 f" vs 60% threshold"
             )
 
 
         # ====================================================
-        # MODEL STATUS
+        # DATA STATUS
         # ====================================================
 
         st.divider()
 
 
-        if data_available:
+        if not data_available:
 
-            st.markdown(
-                """
-                <div class="data-success">
+            home_reason = get_reason(
+                hs
+            )
 
-                ✅ <b>MODEL DATA AVAILABLE</b>
+            away_reason = get_reason(
+                as_
+            )
 
-                <br><br>
+            render_html(
+                f"""
+                <div class="data-warning">
 
-                🏠 Home L5:
-                <b>AVAILABLE</b>
+                    <b>
+                        ⚠️ MODEL DATA UNAVAILABLE
+                    </b>
 
-                <br>
+                    <br><br>
 
-                ✈️ Away L5:
-                <b>AVAILABLE</b>
+                    🏠 Home Data:
+                    <b>{home_reason}</b>
 
-                <br><br>
+                    <br>
 
-                Model Probability နှင့် Edge
-                ကို API မှရရှိသော L5 data
-                အပေါ်အခြေခံ၍ တွက်ချက်ထားပါသည်။
+                    ✈️ Away Data:
+                    <b>{away_reason}</b>
+
+                    <br><br>
+
+                    Model Probability နှင့် Edge ကို
+                    <b>မတွက်ထားပါ</b>။
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
         else:
 
-            # Only show unavailable when actual stats are missing
-            home_reason = hs.get(
-                "reason",
-                hs.get(
-                    "status",
-                    "DATA_UNAVAILABLE"
-                )
-            )
-
-            away_reason = as_.get(
-                "reason",
-                as_.get(
-                    "status",
-                    "DATA_UNAVAILABLE"
-                )
-            )
-
-            st.markdown(
+            render_html(
                 f"""
-                <div class="data-warning">
+                <div class="data-success">
 
-                ⚠️ <b>MODEL DATA UNAVAILABLE</b>
+                    ✅ Home L5 နှင့် Away L5 data
+                    နှစ်ဖက်စလုံး ရရှိပြီး
+                    Model တွက်ချက်ထားပါသည်။
 
-                <br><br>
+                    <br><br>
 
-                🏠 Home Data:
-                <b>{home_reason}</b>
-
-                <br>
-
-                ✈️ Away Data:
-                <b>{away_reason}</b>
+                    <span style="font-size:12px;">
+                        Model Status:
+                        {model_status}
+                    </span>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
 
         # ====================================================
-        # L5 TITLE
+        # PROXY WARNING
+        # ====================================================
+
+        warning = m.get(
+            "data_warning",
+            "",
+        )
+
+        if warning:
+
+            render_html(
+                f"""
+                <div class="proxy-note">
+                    ⚠️ {warning}
+                </div>
+                """
+            )
+
+
+        # ====================================================
+        # STATS TITLE
         # ====================================================
 
         st.markdown(
@@ -670,133 +872,230 @@ for m in matches:
 
 
         # ====================================================
-        # OVER / BTTS
+        # STAT VALUES
         # ====================================================
 
         home_over = safe_pct(
-            hs.get("over_pct")
+            hs.get(
+                "over_pct"
+            )
         )
 
         away_over = safe_pct(
-            as_.get("over_pct")
+            as_.get(
+                "over_pct"
+            )
+        )
+
+        home_under = safe_pct(
+            hs.get(
+                "under_pct"
+            )
+        )
+
+        away_under = safe_pct(
+            as_.get(
+                "under_pct"
+            )
         )
 
         home_btts = safe_pct(
-            hs.get("btts_pct")
+            hs.get(
+                "btts_pct"
+            )
         )
 
         away_btts = safe_pct(
-            as_.get("btts_pct")
+            as_.get(
+                "btts_pct"
+            )
         )
 
+
+        # ====================================================
+        # OVER / BTTS STAT COLUMNS
+        # ====================================================
 
         b1, b2, b3, b4 = st.columns(
             4
         )
 
 
+        # ----------------------------------------------------
+        # HOME OVER
+        # ----------------------------------------------------
+
         with b1:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                HOME L5 OVER
-                </span>
+                    <span class="small-note">
+                        HOME L5 OVER
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="
-                    color:#58a6ff;
-                    font-size:18px;
-                ">
-                {home_over}
-                </b>
+                    <b style="
+                        color:#58a6ff;
+                        font-size:18px;
+                    ">
+                        {home_over}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
+
+        # ----------------------------------------------------
+        # AWAY OVER
+        # ----------------------------------------------------
 
         with b2:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                AWAY L5 OVER
-                </span>
+                    <span class="small-note">
+                        AWAY L5 OVER
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="
-                    color:#58a6ff;
-                    font-size:18px;
-                ">
-                {away_over}
-                </b>
+                    <b style="
+                        color:#58a6ff;
+                        font-size:18px;
+                    ">
+                        {away_over}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
+
+        # ----------------------------------------------------
+        # HOME BTTS
+        # ----------------------------------------------------
 
         with b3:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                HOME L5 BTTS
-                </span>
+                    <span class="small-note">
+                        HOME L5 BTTS
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="
-                    color:#00e676;
-                    font-size:18px;
-                ">
-                {home_btts}
-                </b>
+                    <b style="
+                        color:#00e676;
+                        font-size:18px;
+                    ">
+                        {home_btts}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
 
+        # ----------------------------------------------------
+        # AWAY BTTS
+        # ----------------------------------------------------
+
         with b4:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                AWAY L5 BTTS
-                </span>
+                    <span class="small-note">
+                        AWAY L5 BTTS
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="
-                    color:#00e676;
-                    font-size:18px;
-                ">
-                {away_btts}
-                </b>
+                    <b style="
+                        color:#00e676;
+                        font-size:18px;
+                    ">
+                        {away_btts}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
 
         # ====================================================
-        # GOALS AVERAGES
+        # UNDER STATISTICS
+        # ====================================================
+
+        st.write("")
+
+        st.markdown(
+            "##### 📉 Under 2.5 Statistics"
+        )
+
+        u1, u2 = st.columns(2)
+
+
+        with u1:
+
+            render_html(
+                f"""
+                <div class="stat-box">
+
+                    <span class="small-note">
+                        HOME L5 UNDER
+                    </span>
+
+                    <br>
+
+                    <b style="
+                        color:#ff7b72;
+                        font-size:18px;
+                    ">
+                        {home_under}
+                    </b>
+
+                </div>
+                """
+            )
+
+
+        with u2:
+
+            render_html(
+                f"""
+                <div class="stat-box">
+
+                    <span class="small-note">
+                        AWAY L5 UNDER
+                    </span>
+
+                    <br>
+
+                    <b style="
+                        color:#ff7b72;
+                        font-size:18px;
+                    ">
+                        {away_under}
+                    </b>
+
+                </div>
+                """
+            )
+
+
+        # ====================================================
+        # GF / GA AVERAGES
         # ====================================================
 
         st.write("")
@@ -807,19 +1106,27 @@ for m in matches:
 
 
         gf_home = safe_number(
-            hs.get("gf_avg")
+            hs.get(
+                "gf_avg"
+            )
         )
 
         ga_home = safe_number(
-            hs.get("ga_avg")
+            hs.get(
+                "ga_avg"
+            )
         )
 
         gf_away = safe_number(
-            as_.get("gf_avg")
+            as_.get(
+                "gf_avg"
+            )
         )
 
         ga_away = safe_number(
-            as_.get("ga_avg")
+            as_.get(
+                "ga_avg"
+            )
         )
 
 
@@ -828,92 +1135,163 @@ for m in matches:
         )
 
 
+        # ----------------------------------------------------
+        # HOME GF
+        # ----------------------------------------------------
+
         with g1:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                HOME GF AVG
-                </span>
+                    <span class="small-note">
+                        HOME GF AVG
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="font-size:18px;">
-                {gf_home}
-                </b>
+                    <b style="font-size:18px;">
+                        {gf_home}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
+
+        # ----------------------------------------------------
+        # HOME GA
+        # ----------------------------------------------------
 
         with g2:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                HOME GA AVG
-                </span>
+                    <span class="small-note">
+                        HOME GA AVG
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="font-size:18px;">
-                {ga_home}
-                </b>
+                    <b style="font-size:18px;">
+                        {ga_home}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
+
+        # ----------------------------------------------------
+        # AWAY GF
+        # ----------------------------------------------------
 
         with g3:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                AWAY GF AVG
-                </span>
+                    <span class="small-note">
+                        AWAY GF AVG
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="font-size:18px;">
-                {gf_away}
-                </b>
+                    <b style="font-size:18px;">
+                        {gf_away}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
+
+        # ----------------------------------------------------
+        # AWAY GA
+        # ----------------------------------------------------
 
         with g4:
 
-            st.markdown(
+            render_html(
                 f"""
-                <div class='stat-box'>
+                <div class="stat-box">
 
-                <span class='small-note'>
-                AWAY GA AVG
-                </span>
+                    <span class="small-note">
+                        AWAY GA AVG
+                    </span>
 
-                <br>
+                    <br>
 
-                <b style="font-size:18px;">
-                {ga_away}
-                </b>
+                    <b style="font-size:18px;">
+                        {ga_away}
+                    </b>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
+
+
+        # ====================================================
+        # MODEL DETAILS
+        # ====================================================
+
+        st.write("")
+
+        with st.expander(
+            "🎯 Model Details",
+            expanded=False,
+        ):
+
+            mc1, mc2, mc3 = st.columns(3)
+
+            with mc1:
+
+                st.metric(
+                    "Probability",
+                    prob_display,
+                )
+
+            with mc2:
+
+                st.metric(
+                    "Edge",
+                    edge_display,
+                )
+
+            with mc3:
+
+                st.metric(
+                    "Model Status",
+                    model_status,
+                )
+
+            if sig == "OVER_2_5":
+
+                st.success(
+                    "✅ OVER 2.5 signal generated."
+                )
+
+            elif sig == "UNDER_2_5":
+
+                st.error(
+                    "🔻 UNDER 2.5 signal generated."
+                )
+
+            elif sig == "NEUTRAL":
+
+                st.info(
+                    "⚪ No qualifying Over/Under signal."
+                )
+
+            else:
+
+                st.warning(
+                    "⚠️ Model signal unavailable."
+                )
 
 
         # ====================================================
@@ -927,13 +1305,11 @@ for m in matches:
         )
 
 
-        sc1, sc2 = st.columns(
-            2
-        )
+        sc1, sc2 = st.columns(2)
 
 
         # ====================================================
-        # HOME MATCHES
+        # HOME RECENT MATCHES
         # ====================================================
 
         with sc1:
@@ -947,58 +1323,81 @@ for m in matches:
                 []
             )
 
-
             if home_scores:
 
                 for sc in home_scores:
 
-                    total_goals = sc.get(
+                    date = sc.get(
+                        "date",
+                        "N/A",
+                    )
+
+                    home_team = sc.get(
+                        "home",
+                        "N/A",
+                    )
+
+                    away_team = sc.get(
+                        "away",
+                        "N/A",
+                    )
+
+                    gh = sc.get(
+                        "gh",
+                        "?",
+                    )
+
+                    ga = sc.get(
+                        "ga",
+                        "?",
+                    )
+
+                    total = sc.get(
                         "total",
                         sc.get(
                             "tot",
-                            "?"
-                        )
+                            "?",
+                        ),
                     )
 
-                    st.markdown(
+                    render_html(
                         f"""
-                        <div class='score-box'>
+                        <div class="score-box">
 
-                        {sc.get('date', 'N/A')}
-                        •
-                        <b>
-                        {sc.get('home', 'N/A')}
-                        {sc.get('gh', '?')}
-                        -
-                        {sc.get('ga', '?')}
-                        {sc.get('away', 'N/A')}
-                        </b>
+                            {date}
+                            •
+                            <b>
+                                {home_team}
+                                {gh}
+                                -
+                                {ga}
+                                {away_team}
+                            </b>
 
-                        (
-                        {total_goals}
-                        G
-                        )
+                            (
+                            {total} G
+                            )
 
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
 
             else:
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='data-warning'>
-                    ⚠️ Home recent-match data
-                    မရရှိသေးပါ။
+                    <div class="data-warning">
+
+                        ⚠️ Home recent-match data
+                        မရရှိသေးပါ။
+
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
 
         # ====================================================
-        # AWAY MATCHES
+        # AWAY RECENT MATCHES
         # ====================================================
 
         with sc2:
@@ -1012,64 +1411,87 @@ for m in matches:
                 []
             )
 
-
             if away_scores:
 
                 for sc in away_scores:
 
-                    total_goals = sc.get(
+                    date = sc.get(
+                        "date",
+                        "N/A",
+                    )
+
+                    home_team = sc.get(
+                        "home",
+                        "N/A",
+                    )
+
+                    away_team = sc.get(
+                        "away",
+                        "N/A",
+                    )
+
+                    gh = sc.get(
+                        "gh",
+                        "?",
+                    )
+
+                    ga = sc.get(
+                        "ga",
+                        "?",
+                    )
+
+                    total = sc.get(
                         "total",
                         sc.get(
                             "tot",
-                            "?"
-                        )
+                            "?",
+                        ),
                     )
 
-                    st.markdown(
+                    render_html(
                         f"""
-                        <div class='score-box'>
+                        <div class="score-box">
 
-                        {sc.get('date', 'N/A')}
-                        •
-                        <b>
-                        {sc.get('home', 'N/A')}
-                        {sc.get('gh', '?')}
-                        -
-                        {sc.get('ga', '?')}
-                        {sc.get('away', 'N/A')}
-                        </b>
+                            {date}
+                            •
+                            <b>
+                                {home_team}
+                                {gh}
+                                -
+                                {ga}
+                                {away_team}
+                            </b>
 
-                        (
-                        {total_goals}
-                        G
-                        )
+                            (
+                            {total} G
+                            )
 
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
 
             else:
 
-                st.markdown(
+                render_html(
                     """
-                    <div class='data-warning'>
-                    ⚠️ Away recent-match data
-                    မရရှိသေးပါ။
+                    <div class="data-warning">
+
+                        ⚠️ Away recent-match data
+                        မရရှိသေးပါ။
+
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
 
 
 # ============================================================
-# 12. FOOTER
+# 13. FOOTER
 # ============================================================
 
 st.divider()
 
 st.caption(
     "⚽ Pre-Match Over/Under Intelligence Pro "
-    "| Real API L5 data is displayed explicitly. "
+    "| API data availability is shown explicitly. "
     "| No fake 50% fallback values are used."
 )
