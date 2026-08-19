@@ -1,6 +1,5 @@
 import json
 import os
-import textwrap
 import streamlit as st
 
 
@@ -28,36 +27,23 @@ st.markdown(
     color: #e6edf3;
 }
 
-/* ============================================================
-   HEADER
-   ============================================================ */
-
 .header-card {
     background: linear-gradient(
         135deg,
         #161b22 0%,
         #21262d 100%
     );
-
     border: 1px solid #30363d;
     border-radius: 12px;
-
     padding: 16px;
     margin-bottom: 16px;
 }
 
-
-/* ============================================================
-   BADGES
-   ============================================================ */
-
 .badge-over {
     background-color: #00e676;
     color: #042410;
-
-    padding: 6px 14px;
+    padding: 7px 14px;
     border-radius: 6px;
-
     font-weight: 800;
     display: inline-block;
 }
@@ -65,10 +51,8 @@ st.markdown(
 .badge-under {
     background-color: #ff1744;
     color: #ffffff;
-
-    padding: 6px 14px;
+    padding: 7px 14px;
     border-radius: 6px;
-
     font-weight: 800;
     display: inline-block;
 }
@@ -76,10 +60,8 @@ st.markdown(
 .badge-neutral {
     background-color: #30363d;
     color: #8b949e;
-
-    padding: 6px 14px;
+    padding: 7px 14px;
     border-radius: 6px;
-
     font-weight: 800;
     display: inline-block;
 }
@@ -87,140 +69,81 @@ st.markdown(
 .badge-unavailable {
     background-color: #5a2028;
     color: #ff7b72;
-
-    padding: 6px 14px;
+    padding: 7px 14px;
     border-radius: 6px;
-
     font-weight: 800;
     display: inline-block;
 }
 
-
-/* ============================================================
-   STAT BOX
-   ============================================================ */
-
 .stat-box {
     background-color: #161b22;
-
     border: 1px solid #30363d;
     border-radius: 8px;
-
-    padding: 10px;
-
+    padding: 12px;
     text-align: center;
+    min-height: 82px;
 }
 
-.stat-box-unavailable {
+.stat-box-warning {
     background-color: #161b22;
-
     border: 1px solid #5a2028;
     border-radius: 8px;
-
-    padding: 10px;
-
+    padding: 12px;
     text-align: center;
+    min-height: 82px;
 }
-
-
-/* ============================================================
-   SCORE BOX
-   ============================================================ */
 
 .score-box {
     background-color: #0d1117;
-
     border: 1px solid #30363d;
     border-radius: 8px;
-
     padding: 8px 12px;
     margin-bottom: 6px;
 }
-
-
-/* ============================================================
-   TEXT
-   ============================================================ */
 
 .small-note {
     color: #8b949e;
     font-size: 12px;
 }
 
-
-/* ============================================================
-   WARNING
-   ============================================================ */
-
 .data-warning {
     background-color: #2d1b1e;
-
     border: 1px solid #5a2028;
-
     color: #ff7b72;
-
     border-radius: 8px;
-
     padding: 12px;
-
     margin: 8px 0;
 }
-
-
-/* ============================================================
-   SUCCESS
-   ============================================================ */
 
 .data-success {
     background-color: #12251a;
-
     border: 1px solid #238636;
-
     color: #56d364;
-
     border-radius: 8px;
-
     padding: 12px;
-
     margin: 8px 0;
 }
 
-
-/* ============================================================
-   MODEL CARD
-   ============================================================ */
-
-.model-card {
+.info-box {
     background-color: #161b22;
-
     border: 1px solid #30363d;
-
-    border-radius: 10px;
-
-    padding: 14px;
-
-    margin-top: 8px;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
 }
 
-
-/* ============================================================
-   DATA SOURCE NOTE
-   ============================================================ */
-
-.proxy-note {
-    background-color: #211f12;
-
-    border: 1px solid #6e5c20;
-
-    color: #d8c56a;
-
+.league-box {
+    background-color: #161b22;
+    border: 1px solid #30363d;
     border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+}
 
-    padding: 10px;
-
-    margin-top: 8px;
-
-    font-size: 13px;
+.filter-title {
+    color: #58a6ff;
+    font-weight: 700;
+    font-size: 15px;
 }
 
 </style>
@@ -230,29 +153,17 @@ st.markdown(
 
 
 # ============================================================
-# 3. HTML HELPER
-# ============================================================
-
-def render_html(html):
-    """
-    HTML indentation ကို ဖြုတ်ပြီး Streamlit မှာ
-    raw HTML code မပြဘဲ HTML အဖြစ် render လုပ်ရန်။
-    """
-
-    st.markdown(
-        textwrap.dedent(html).strip(),
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# 4. HEADER
+# 3. HEADER
 # ============================================================
 
 st.markdown(
     """
 ## ⚽ MATCHES FEED
-<span style="color:#58a6ff; font-size:14px;">
+
+<span style="
+    color:#58a6ff;
+    font-size:14px;
+">
 Pre-Match Intelligence Pro
 </span>
 """,
@@ -261,22 +172,22 @@ Pre-Match Intelligence Pro
 
 
 # ============================================================
-# 5. CHECK JSON FILE
+# 4. CHECK JSON FILE
 # ============================================================
 
 if not os.path.exists("matches_data.json"):
 
     st.error(
-        "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။\n\n"
+        "⚠️ `matches_data.json` ဖိုင် မတွေ့ရှိသေးပါ။ "
         "ကျေးဇူးပြု၍ GitHub Actions Workflow ကို "
-        "အရင် run ပေးပါ။"
+        "အရင် Run ပေးပါ။"
     )
 
     st.stop()
 
 
 # ============================================================
-# 6. LOAD JSON
+# 5. LOAD JSON
 # ============================================================
 
 try:
@@ -284,185 +195,84 @@ try:
     with open(
         "matches_data.json",
         "r",
-        encoding="utf-8",
-    ) as f:
+        encoding="utf-8"
+    ) as file:
 
-        data = json.load(f)
+        data = json.load(file)
 
-except json.JSONDecodeError as e:
+except json.JSONDecodeError as exc:
 
     st.error(
-        f"❌ `matches_data.json` ဖိုင်ကို ဖတ်မရပါ။\n\n{e}"
+        "❌ `matches_data.json` ကို JSON အဖြစ် "
+        "ဖတ်မရပါ။"
     )
+
+    st.code(str(exc))
 
     st.stop()
 
-except Exception as e:
+except Exception as exc:
 
     st.error(
-        f"❌ JSON ဖိုင်ဖတ်ရာတွင် Error ဖြစ်နေပါတယ်:\n\n{e}"
+        "❌ JSON ဖိုင်ဖတ်ရာတွင် Error ဖြစ်နေပါတယ်။"
+    )
+
+    st.code(str(exc))
+
+    st.stop()
+
+
+# ============================================================
+# 6. VALIDATE DATA
+# ============================================================
+
+if not isinstance(data, dict):
+
+    st.error(
+        "❌ `matches_data.json` ရဲ့ root structure က "
+        "JSON object မဟုတ်ပါ။"
     )
 
     st.stop()
 
 
 # ============================================================
-# 7. GET DATA
+# 7. GET MATCH DATA
 # ============================================================
 
 matches = data.get(
     "matches",
-    [],
+    []
 )
+
+if not isinstance(matches, list):
+
+    matches = []
+
 
 updated_date = data.get(
     "updated_at",
-    data.get(
-        "window_range",
-        "N/A",
-    ),
+    "N/A"
 )
 
-total_matches = len(matches)
+window_range = data.get(
+    "window_range",
+    "N/A"
+)
 
 mode = data.get(
     "mode",
-    "UNKNOWN",
+    "N/A"
 )
 
-league_filter = data.get(
+league_filter_data = data.get(
     "league_filter",
-    "N/A",
-)
-
-history_season = data.get(
-    "history_season",
-    "N/A",
-)
-
-api_calls = data.get(
-    "api_calls_this_run",
-    "N/A",
-)
-
-remaining_quota = data.get(
-    "remaining_quota",
-    "N/A",
+    "N/A"
 )
 
 
 # ============================================================
-# 8. HEADER CARD
-# ============================================================
-
-render_html(
-    f"""
-    <div class="header-card">
-
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:15px;
-            flex-wrap:wrap;
-        ">
-
-            <div>
-
-                <span class="small-note">
-                    ACTIVE MATCHES WINDOW
-                </span>
-
-                <h4 style="
-                    margin:0;
-                    color:#00e676;
-                ">
-                    📅 {updated_date}
-                </h4>
-
-            </div>
-
-            <span style="
-                background-color:#21262d;
-                color:#58a6ff;
-                padding:6px 12px;
-                border-radius:6px;
-                font-weight:bold;
-            ">
-                Total Matches: {total_matches}
-            </span>
-
-        </div>
-
-    </div>
-    """
-)
-
-
-# ============================================================
-# 9. SYSTEM INFORMATION
-# ============================================================
-
-with st.expander(
-    "⚙️ System Information",
-    expanded=False,
-):
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-
-        st.metric(
-            "Mode",
-            mode,
-        )
-
-    with c2:
-
-        st.metric(
-            "League Filter",
-            league_filter,
-        )
-
-    with c3:
-
-        st.metric(
-            "API Calls",
-            api_calls,
-        )
-
-    with c4:
-
-        st.metric(
-            "Remaining Quota",
-            remaining_quota,
-        )
-
-    st.caption(
-        f"History Season: {history_season}"
-    )
-
-
-# ============================================================
-# 10. EMPTY MATCH CHECK
-# ============================================================
-
-if not matches:
-
-    st.warning(
-        "⚠️ လက်ရှိမှာ ပြသရန် match data မရှိသေးပါ။"
-    )
-
-    st.info(
-        "GitHub Actions က `matches_data.json` ထဲမှာ "
-        "match မထည့်ပေးထားတာဖြစ်နိုင်ပါတယ်။"
-    )
-
-    st.stop()
-
-
-# ============================================================
-# 11. HELPER FUNCTIONS
+# 8. SAFE DISPLAY FUNCTIONS
 # ============================================================
 
 def safe_pct(value):
@@ -471,14 +281,12 @@ def safe_pct(value):
         return "N/A"
 
     try:
-
         return f"{float(value):.0f}%"
 
     except (
         TypeError,
-        ValueError,
+        ValueError
     ):
-
         return "N/A"
 
 
@@ -488,14 +296,12 @@ def safe_number(value):
         return "N/A"
 
     try:
-
         return f"{float(value):.2f}"
 
     except (
         TypeError,
-        ValueError,
+        ValueError
     ):
-
         return "N/A"
 
 
@@ -505,14 +311,12 @@ def safe_probability(value):
         return "N/A"
 
     try:
-
         return f"{float(value):.1f}%"
 
     except (
         TypeError,
-        ValueError,
+        ValueError
     ):
-
         return "N/A"
 
 
@@ -522,133 +326,472 @@ def safe_edge(value):
         return "N/A"
 
     try:
-
         return f"{float(value):+.1f}%"
 
     except (
         TypeError,
-        ValueError,
+        ValueError
     ):
-
         return "N/A"
 
 
 def get_reason(stats):
 
-    if not isinstance(
-        stats,
-        dict,
-    ):
-
+    if not isinstance(stats, dict):
         return "UNKNOWN"
 
+    return stats.get(
+        "reason",
+        stats.get(
+            "status",
+            "UNKNOWN"
+        )
+    )
+
+
+def get_sample_size(stats):
+
+    if not isinstance(stats, dict):
+        return 0
+
+    try:
+        return int(
+            stats.get(
+                "sample_size",
+                0
+            )
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
+        return 0
+
+
+def is_available(stats):
+
+    if not isinstance(stats, dict):
+        return False
+
+    # New format
+    if "available" in stats:
+
+        return bool(
+            stats.get(
+                "available",
+                False
+            )
+        )
+
+    # Existing model format
     status = stats.get(
-        "status"
+        "status",
+        ""
     )
 
-    if status:
-        return str(status)
+    if status in [
+        "PROXY_2024_25",
+        "PARTIAL_PROXY_2024_25",
+    ]:
 
-    reason = stats.get(
-        "reason"
-    )
+        return True
 
-    if reason:
-        return str(reason)
+    if get_sample_size(stats) >= 5:
 
-    return "UNKNOWN"
+        return True
 
-
-def get_model_status(match):
-
-    status = match.get(
-        "model_status"
-    )
-
-    if status:
-        return status
-
-    return "UNKNOWN"
+    return False
 
 
 # ============================================================
-# 12. MATCH LOOP
+# 9. HEADER INFORMATION
 # ============================================================
 
-for m in matches:
+st.markdown(
+    f"""
+<div class="header-card">
+
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:20px;
+        flex-wrap:wrap;
+    ">
+
+        <div>
+
+            <span class="small-note">
+                ACTIVE MATCHES DATE
+            </span>
+
+            <h4 style="
+                margin:0;
+                color:#00e676;
+            ">
+                📅 {updated_date}
+            </h4>
+
+        </div>
+
+        <div>
+
+            <span style="
+                background-color:#21262d;
+                color:#58a6ff;
+                padding:7px 12px;
+                border-radius:6px;
+                font-weight:bold;
+            ">
+                Total Matches: {len(matches)}
+            </span>
+
+        </div>
+
+    </div>
+
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# 10. WINDOW / MODE INFORMATION
+# ============================================================
+
+info_col1, info_col2 = st.columns(2)
+
+
+with info_col1:
+
+    st.markdown(
+        f"""
+        <div class="info-box">
+
+        <span class="small-note">
+        🕐 SEARCH WINDOW
+        </span>
+
+        <br>
+
+        <b>
+        {window_range}
+        </b>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+with info_col2:
+
+    st.markdown(
+        f"""
+        <div class="info-box">
+
+        <span class="small-note">
+        ⚙️ MODE
+        </span>
+
+        <br>
+
+        <b>
+        {mode}
+        </b>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# 11. LEAGUE FILTER DISPLAY
+#
+# IMPORTANT:
+# DO NOT use st.metric() with a list.
+# league_filter can be a list/string.
+# ============================================================
+
+st.markdown(
+    "### 🏆 League Filter"
+)
+
+
+if isinstance(
+    league_filter_data,
+    list
+):
 
     # --------------------------------------------------------
-    # BASIC DATA
+    # LIST FORMAT
+    # --------------------------------------------------------
+
+    league_count = len(
+        league_filter_data
+    )
+
+    st.markdown(
+        f"""
+        <div class="info-box">
+
+        <span class="filter-title">
+        📋 {league_count} League / Competition Groups
+        </span>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.expander(
+        "📋 View League Filter",
+        expanded=False
+    ):
+
+        for league in league_filter_data:
+
+            st.markdown(
+                f"""
+                <div class="league-box">
+                • {league}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+elif isinstance(
+    league_filter_data,
+    str
+):
+
+    st.markdown(
+        f"""
+        <div class="info-box">
+
+        <span class="filter-title">
+        🏆 {league_filter_data}
+        </span>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+else:
+
+    st.markdown(
+        """
+        <div class="info-box">
+
+        <span class="small-note">
+        League filter information is not available.
+        </span>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# 12. EMPTY MATCH CHECK
+# ============================================================
+
+if not matches:
+
+    st.warning(
+        "⚠️ လက်ရှိမှာ ပြသရန် match data မရှိသေးပါ။"
+    )
+
+    st.stop()
+
+
+# ============================================================
+# 13. MATCH FILTER
+# ============================================================
+
+available_leagues = []
+
+for match in matches:
+
+    if not isinstance(
+        match,
+        dict
+    ):
+        continue
+
+    league_name = match.get(
+        "league",
+        "Unknown League"
+    )
+
+    if league_name not in available_leagues:
+
+        available_leagues.append(
+            league_name
+        )
+
+
+available_leagues.sort()
+
+
+st.markdown(
+    "### 🔎 Match Filter"
+)
+
+
+selected_leagues = st.multiselect(
+    "League",
+    options=available_leagues,
+    default=available_leagues,
+    key="league_selector",
+)
+
+
+filtered_matches = []
+
+
+for match in matches:
+
+    if not isinstance(
+        match,
+        dict
+    ):
+        continue
+
+    league_name = match.get(
+        "league",
+        "Unknown League"
+    )
+
+    if league_name in selected_leagues:
+
+        filtered_matches.append(
+            match
+        )
+
+
+st.markdown(
+    f"""
+    <div class="info-box">
+
+    <span class="small-note">
+    MATCHES AFTER FILTER
+    </span>
+
+    <br>
+
+    <b style="
+        color:#58a6ff;
+        font-size:18px;
+    ">
+    {len(filtered_matches)}
+    </b>
+
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# 14. MATCH LOOP
+# ============================================================
+
+for m in filtered_matches:
+
+    if not isinstance(
+        m,
+        dict
+    ):
+        continue
+
+
+    # --------------------------------------------------------
+    # BASIC MATCH DATA
     # --------------------------------------------------------
 
     h_name = m.get(
         "home",
-        "Unknown Home",
+        "Unknown Home"
     )
 
     a_name = m.get(
         "away",
-        "Unknown Away",
+        "Unknown Away"
     )
 
     l_name = m.get(
         "league",
-        "Unknown League",
+        "Unknown League"
     )
 
     country = m.get(
         "country",
-        "",
+        ""
     )
 
     sig = m.get(
         "signal",
-        "NEUTRAL",
+        "NEUTRAL"
     )
 
     prob = m.get(
         "prob",
-        None,
+        m.get(
+            "probability",
+            None
+        )
     )
 
     edge = m.get(
         "edge",
-        None,
+        None
     )
 
     hs = m.get(
         "h_stats",
-        {},
+        {}
     )
 
     as_ = m.get(
         "a_stats",
-        {},
+        {}
     )
 
-    model_status = get_model_status(
-        m
-    )
+
+    if not isinstance(
+        hs,
+        dict
+    ):
+
+        hs = {}
+
+
+    if not isinstance(
+        as_,
+        dict
+    ):
+
+        as_ = {}
 
 
     # --------------------------------------------------------
     # DATA AVAILABILITY
     # --------------------------------------------------------
 
-    home_available = (
-        isinstance(hs, dict)
-        and hs.get(
-            "sample_size",
-            0,
-        ) >= 5
+    home_available = is_available(
+        hs
     )
 
-    away_available = (
-        isinstance(as_, dict)
-        and as_.get(
-            "sample_size",
-            0,
-        ) >= 5
+    away_available = is_available(
+        as_
     )
 
     data_available = (
@@ -657,15 +800,15 @@ for m in matches:
     )
 
 
-    # ========================================================
+    # --------------------------------------------------------
     # EXPANDER TITLE
-    # ========================================================
+    # --------------------------------------------------------
 
     expander_title = (
         f"🏆 {l_name}"
-        f" | ⏰ {m.get('time', 'N/A')} MMT"
-        f" | ⚽ {h_name} vs {a_name}"
-        f" [{sig}]"
+        f"  |  ⏰ {m.get('time', 'N/A')} MMT"
+        f"  |  ⚽ {h_name} vs {a_name}"
+        f"  [{sig}]"
     )
 
 
@@ -674,10 +817,11 @@ for m in matches:
         expanded=(
             sig in [
                 "OVER_2_5",
-                "UNDER_2_5",
+                "UNDER_2_5"
             ]
-        ),
+        )
     ):
+
 
         # ====================================================
         # MATCH HEADER
@@ -698,9 +842,17 @@ for m in matches:
                 f"### ⚽ {h_name} vs {a_name}"
             )
 
+            country_text = ""
+
+            if country:
+
+                country_text = (
+                    f" ({country})"
+                )
+
             st.caption(
                 f"🏆 {l_name}"
-                f" ({country})"
+                f"{country_text}"
                 f" | ⏰ {m.get('time', 'N/A')} MMT"
             )
 
@@ -713,42 +865,46 @@ for m in matches:
 
             if sig == "OVER_2_5":
 
-                render_html(
+                st.markdown(
                     """
                     <div class="badge-over">
-                        ⭐⭐⭐⭐⭐ OVER 2.5 TARGET
+                    ⭐⭐⭐⭐⭐ OVER 2.5 TARGET
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
                 )
 
             elif sig == "UNDER_2_5":
 
-                render_html(
+                st.markdown(
                     """
                     <div class="badge-under">
-                        ⭐⭐⭐⭐⭐ UNDER 2.5 TARGET
+                    ⭐⭐⭐⭐⭐ UNDER 2.5 TARGET
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
                 )
 
             elif sig == "DATA_UNAVAILABLE":
 
-                render_html(
+                st.markdown(
                     """
                     <div class="badge-unavailable">
-                        ⚠️ DATA UNAVAILABLE
+                    ⚠️ DATA UNAVAILABLE
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
                 )
 
             else:
 
-                render_html(
+                st.markdown(
                     """
                     <div class="badge-neutral">
-                        ⚪ NEUTRAL
+                    ⚪ NEUTRAL
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
                 )
 
 
@@ -760,13 +916,13 @@ for m in matches:
                 edge
             )
 
+
             st.write(
                 f"**Probability:** "
                 f"{prob_display}"
                 f" | "
                 f"**Edge:** "
                 f"{edge_display}"
-                f" vs 60% threshold"
             )
 
 
@@ -787,72 +943,64 @@ for m in matches:
                 as_
             )
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="data-warning">
 
-                    <b>
-                        ⚠️ MODEL DATA UNAVAILABLE
-                    </b>
+                <b>
+                ⚠️ MODEL DATA UNAVAILABLE
+                </b>
 
-                    <br><br>
+                <br><br>
 
-                    🏠 Home Data:
-                    <b>{home_reason}</b>
+                🏠 Home Data:
+                <b>{home_reason}</b>
 
-                    <br>
+                <br>
 
-                    ✈️ Away Data:
-                    <b>{away_reason}</b>
+                ✈️ Away Data:
+                <b>{away_reason}</b>
 
-                    <br><br>
+                <br><br>
 
-                    Model Probability နှင့် Edge ကို
-                    <b>မတွက်ထားပါ</b>။
+                Model Probability နှင့် Edge ကို
+                <b>မယုံကြည်ရသော data ဖြင့် မတွက်ပါ</b>။
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
+
 
         else:
 
-            render_html(
+            home_sample = get_sample_size(
+                hs
+            )
+
+            away_sample = get_sample_size(
+                as_
+            )
+
+            st.markdown(
                 f"""
                 <div class="data-success">
 
-                    ✅ Home L5 နှင့် Away L5 data
-                    နှစ်ဖက်စလုံး ရရှိပြီး
-                    Model တွက်ချက်ထားပါသည်။
+                ✅ Home data နှင့် Away data ရရှိပါသည်။
 
-                    <br><br>
+                <br>
 
-                    <span style="font-size:12px;">
-                        Model Status:
-                        {model_status}
-                    </span>
+                🏠 Home Sample:
+                <b>{home_sample}</b>
+
+                &nbsp;&nbsp;
+
+                ✈️ Away Sample:
+                <b>{away_sample}</b>
 
                 </div>
-                """
-            )
-
-
-        # ====================================================
-        # PROXY WARNING
-        # ====================================================
-
-        warning = m.get(
-            "data_warning",
-            "",
-        )
-
-        if warning:
-
-            render_html(
-                f"""
-                <div class="proxy-note">
-                    ⚠️ {warning}
-                </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
@@ -913,7 +1061,7 @@ for m in matches:
 
 
         # ====================================================
-        # OVER / BTTS STAT COLUMNS
+        # OVER / UNDER / BTTS
         # ====================================================
 
         b1, b2, b3, b4 = st.columns(
@@ -927,12 +1075,12 @@ for m in matches:
 
         with b1:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        HOME L5 OVER
+                    HOME L5 OVER 2.5
                     </span>
 
                     <br>
@@ -945,7 +1093,8 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
@@ -955,12 +1104,12 @@ for m in matches:
 
         with b2:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        AWAY L5 OVER
+                    AWAY L5 OVER 2.5
                     </span>
 
                     <br>
@@ -973,7 +1122,8 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
@@ -983,12 +1133,12 @@ for m in matches:
 
         with b3:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        HOME L5 BTTS
+                    HOME L5 BTTS
                     </span>
 
                     <br>
@@ -1001,7 +1151,8 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
@@ -1011,12 +1162,12 @@ for m in matches:
 
         with b4:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        AWAY L5 BTTS
+                    AWAY L5 BTTS
                     </span>
 
                     <br>
@@ -1029,31 +1180,28 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
         # ====================================================
-        # UNDER STATISTICS
+        # UNDER STATS
         # ====================================================
 
         st.write("")
-
-        st.markdown(
-            "##### 📉 Under 2.5 Statistics"
-        )
 
         u1, u2 = st.columns(2)
 
 
         with u1:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        HOME L5 UNDER
+                    HOME L5 UNDER 2.5
                     </span>
 
                     <br>
@@ -1066,18 +1214,19 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
         with u2:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        AWAY L5 UNDER
+                    AWAY L5 UNDER 2.5
                     </span>
 
                     <br>
@@ -1090,12 +1239,13 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
         # ====================================================
-        # GF / GA AVERAGES
+        # GOALS AVERAGES
         # ====================================================
 
         st.write("")
@@ -1135,18 +1285,14 @@ for m in matches:
         )
 
 
-        # ----------------------------------------------------
-        # HOME GF
-        # ----------------------------------------------------
-
         with g1:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        HOME GF AVG
+                    HOME GF AVG
                     </span>
 
                     <br>
@@ -1156,22 +1302,19 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
-        # ----------------------------------------------------
-        # HOME GA
-        # ----------------------------------------------------
-
         with g2:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        HOME GA AVG
+                    HOME GA AVG
                     </span>
 
                     <br>
@@ -1181,22 +1324,19 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
-        # ----------------------------------------------------
-        # AWAY GF
-        # ----------------------------------------------------
-
         with g3:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        AWAY GF AVG
+                    AWAY GF AVG
                     </span>
 
                     <br>
@@ -1206,22 +1346,19 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
 
 
-        # ----------------------------------------------------
-        # AWAY GA
-        # ----------------------------------------------------
-
         with g4:
 
-            render_html(
+            st.markdown(
                 f"""
                 <div class="stat-box">
 
                     <span class="small-note">
-                        AWAY GA AVG
+                    AWAY GA AVG
                     </span>
 
                     <br>
@@ -1231,67 +1368,9 @@ for m in matches:
                     </b>
 
                 </div>
-                """
+                """,
+                unsafe_allow_html=True,
             )
-
-
-        # ====================================================
-        # MODEL DETAILS
-        # ====================================================
-
-        st.write("")
-
-        with st.expander(
-            "🎯 Model Details",
-            expanded=False,
-        ):
-
-            mc1, mc2, mc3 = st.columns(3)
-
-            with mc1:
-
-                st.metric(
-                    "Probability",
-                    prob_display,
-                )
-
-            with mc2:
-
-                st.metric(
-                    "Edge",
-                    edge_display,
-                )
-
-            with mc3:
-
-                st.metric(
-                    "Model Status",
-                    model_status,
-                )
-
-            if sig == "OVER_2_5":
-
-                st.success(
-                    "✅ OVER 2.5 signal generated."
-                )
-
-            elif sig == "UNDER_2_5":
-
-                st.error(
-                    "🔻 UNDER 2.5 signal generated."
-                )
-
-            elif sig == "NEUTRAL":
-
-                st.info(
-                    "⚪ No qualifying Over/Under signal."
-                )
-
-            else:
-
-                st.warning(
-                    "⚠️ Model signal unavailable."
-                )
 
 
         # ====================================================
@@ -1301,11 +1380,13 @@ for m in matches:
         st.write("")
 
         st.markdown(
-            "##### 📜 Recent Home/Away Matches:"
+            "##### 📜 Recent Home / Away Matches"
         )
 
 
-        sc1, sc2 = st.columns(2)
+        sc1, sc2 = st.columns(
+            2
+        )
 
 
         # ====================================================
@@ -1315,7 +1396,7 @@ for m in matches:
         with sc1:
 
             st.caption(
-                f"🏠 {h_name} Last 5 Home Matches"
+                f"🏠 {h_name} — Last 5 Home Matches"
             )
 
             home_scores = hs.get(
@@ -1323,76 +1404,91 @@ for m in matches:
                 []
             )
 
-            if home_scores:
+            if (
+                isinstance(
+                    home_scores,
+                    list
+                )
+                and home_scores
+            ):
 
                 for sc in home_scores:
 
+                    if not isinstance(
+                        sc,
+                        dict
+                    ):
+                        continue
+
                     date = sc.get(
                         "date",
-                        "N/A",
+                        "N/A"
                     )
 
                     home_team = sc.get(
                         "home",
-                        "N/A",
+                        "N/A"
                     )
 
                     away_team = sc.get(
                         "away",
-                        "N/A",
+                        "N/A"
                     )
 
                     gh = sc.get(
                         "gh",
-                        "?",
+                        "?"
                     )
 
                     ga = sc.get(
                         "ga",
-                        "?",
+                        "?"
                     )
 
                     total = sc.get(
                         "total",
                         sc.get(
                             "tot",
-                            "?",
-                        ),
+                            "?"
+                        )
                     )
 
-                    render_html(
+                    st.markdown(
                         f"""
                         <div class="score-box">
 
-                            {date}
-                            •
-                            <b>
-                                {home_team}
-                                {gh}
-                                -
-                                {ga}
-                                {away_team}
-                            </b>
+                        {date}
+                        •
+                        <b>
+                        {home_team}
+                        {gh}
+                        -
+                        {ga}
+                        {away_team}
+                        </b>
 
-                            (
-                            {total} G
-                            )
+                        (
+                        {total}
+                        G
+                        )
 
                         </div>
-                        """
+                        """,
+                        unsafe_allow_html=True,
                     )
 
             else:
 
-                render_html(
+                st.markdown(
                     """
                     <div class="data-warning">
 
-                        ⚠️ Home recent-match data
-                        မရရှိသေးပါ။
+                    ⚠️ Home recent-match data
+                    မရရှိသေးပါ။
 
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
                 )
 
 
@@ -1403,7 +1499,7 @@ for m in matches:
         with sc2:
 
             st.caption(
-                f"✈️ {a_name} Last 5 Away Matches"
+                f"✈️ {a_name} — Last 5 Away Matches"
             )
 
             away_scores = as_.get(
@@ -1411,81 +1507,143 @@ for m in matches:
                 []
             )
 
-            if away_scores:
+            if (
+                isinstance(
+                    away_scores,
+                    list
+                )
+                and away_scores
+            ):
 
                 for sc in away_scores:
 
+                    if not isinstance(
+                        sc,
+                        dict
+                    ):
+                        continue
+
                     date = sc.get(
                         "date",
-                        "N/A",
+                        "N/A"
                     )
 
                     home_team = sc.get(
                         "home",
-                        "N/A",
+                        "N/A"
                     )
 
                     away_team = sc.get(
                         "away",
-                        "N/A",
+                        "N/A"
                     )
 
                     gh = sc.get(
                         "gh",
-                        "?",
+                        "?"
                     )
 
                     ga = sc.get(
                         "ga",
-                        "?",
+                        "?"
                     )
 
                     total = sc.get(
                         "total",
                         sc.get(
                             "tot",
-                            "?",
-                        ),
+                            "?"
+                        )
                     )
 
-                    render_html(
+                    st.markdown(
                         f"""
                         <div class="score-box">
 
-                            {date}
-                            •
-                            <b>
-                                {home_team}
-                                {gh}
-                                -
-                                {ga}
-                                {away_team}
-                            </b>
+                        {date}
+                        •
+                        <b>
+                        {home_team}
+                        {gh}
+                        -
+                        {ga}
+                        {away_team}
+                        </b>
 
-                            (
-                            {total} G
-                            )
+                        (
+                        {total}
+                        G
+                        )
 
                         </div>
-                        """
+                        """,
+                        unsafe_allow_html=True,
                     )
 
             else:
 
-                render_html(
+                st.markdown(
                     """
                     <div class="data-warning">
 
-                        ⚠️ Away recent-match data
-                        မရရှိသေးပါ။
+                    ⚠️ Away recent-match data
+                    မရရှိသေးပါ။
 
                     </div>
-                    """
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+        # ====================================================
+        # MODEL DETAILS
+        # ====================================================
+
+        st.write("")
+
+        with st.expander(
+            "🔍 Model / Data Details",
+            expanded=False
+        ):
+
+            model_status = m.get(
+                "model_status",
+                "N/A"
+            )
+
+            data_warning = m.get(
+                "data_warning",
+                ""
+            )
+
+            st.write(
+                f"**Signal:** {sig}"
+            )
+
+            st.write(
+                f"**Probability:** "
+                f"{safe_probability(prob)}"
+            )
+
+            st.write(
+                f"**Edge:** "
+                f"{safe_edge(edge)}"
+            )
+
+            st.write(
+                f"**Model Status:** "
+                f"{model_status}"
+            )
+
+            if data_warning:
+
+                st.warning(
+                    data_warning
                 )
 
 
 # ============================================================
-# 13. FOOTER
+# 15. FOOTER
 # ============================================================
 
 st.divider()
