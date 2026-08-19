@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-08-19 12:04 MMT",
+  "updated_at": "2026-08-19 12:18 MMT",
   "window_range": "2026-08-19 - 2026-08-21 MMT",
   "mode": "MULTI_LEAGUE_PREMATCH",
   "league_filter": {
@@ -78,7 +78,7 @@
     }
   },
   "api_calls_this_run": 1,
-  "remaining_quota": 73,
+  "remaining_quota": 72,
   "total_matches": 0,
   "matches": [],
   "safety": {
